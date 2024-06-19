@@ -1,0 +1,244 @@
+import { CodeSnippetsProps } from "@/components/editor";
+
+export const languageOptions = [
+  {
+    language: "javascript",
+    version: "18.15.0",
+    aliases: ["node-javascript", "node-js", "javascript", "js"],
+    runtime: "node",
+  },
+  {
+    language: "typescript",
+    version: "5.0.3",
+    aliases: ["ts", "node-ts", "tsc", "typescript5", "ts5"],
+  },
+  {
+    language: "php",
+    version: "8.2.3",
+    aliases: [],
+  },
+  {
+    language: "python",
+    version: "3.10.0",
+    aliases: ["py", "py3", "python3", "python3.10"],
+  },
+  {
+    language: "ruby",
+    version: "3.0.1",
+    aliases: ["ruby3", "rb"],
+  },
+  {
+    language: "rust",
+    version: "1.68.2",
+    aliases: ["rs"],
+  },
+  {
+    language: "csharp",
+    version: "6.12.0",
+    aliases: ["mono", "mono-csharp", "mono-c#", "mono-cs", "c#", "cs"],
+    runtime: "mono",
+  },
+  {
+    language: "c++",
+    version: "10.2.0",
+    aliases: ["cpp", "g++"],
+    runtime: "gcc",
+  },
+  {
+    language: "go",
+    version: "1.16.2",
+    aliases: ["go", "golang"],
+  },
+  {
+    language: "java",
+    version: "15.0.2",
+    aliases: [],
+  },
+  {
+    language: "c",
+    version: "10.2.0",
+    aliases: ["gcc"],
+    runtime: "gcc",
+  },
+  {
+    language: "octave",
+    version: "8.1.0",
+    aliases: ["matlab", "m"],
+  },
+  {
+    language: "perl",
+    version: "5.36.0",
+    aliases: ["pl"],
+  },
+  {
+    language: "powershell",
+    version: "7.1.4",
+    aliases: ["ps", "pwsh", "ps1"],
+    runtime: "pwsh",
+  },
+  {
+    language: "scala",
+    version: "3.2.2",
+    aliases: ["sc"],
+  },
+  {
+    language: "sqlite3",
+    version: "3.36.0",
+    aliases: ["sqlite", "sql"],
+  },
+  {
+    language: "swift",
+    version: "5.3.3",
+    aliases: ["swift"],
+  },
+  {
+    language: "julia",
+    version: "1.8.5",
+    aliases: ["jl"],
+  },
+  {
+    language: "rscript",
+    version: "4.1.1",
+    aliases: ["r"],
+  },
+];
+
+export const codeSnippets: CodeSnippetsProps = {
+  javascript: `function sum(a, b) {
+  return a + b;
+}
+console.log(sum(3, 4));`, // Output: 7
+
+  typescript: `function sum(a: number, b: number): number {
+  return a + b;
+}
+console.log(sum(3, 4));`, // Output: 7
+
+  php: `<?php
+function sum($a, $b) {
+  return $a + $b;
+}
+
+echo sum(3, 4);
+?>`, // Output: 7
+
+  python: `def sum(a, b):
+    return a + b
+print(sum(3, 4))`, // Output: 7
+
+  ruby: `def sum(a, b)
+  a + b
+end
+puts sum(3, 4)`, // Output: 7
+
+  rust: `fn sum(a: i32, b: i32) -> i32 {
+  a + b
+}
+fn main() {
+  println!("{}", sum(3, 4));
+}`, // Output: 7
+
+  csharp: `using System;
+
+public class Program
+{
+    public static int Sum(int a, int b)
+    {
+        return a + b;
+    }
+
+    public static void Main(string[] args)
+    {
+        Console.WriteLine(Sum(3, 4));
+    }
+}`, // Output: 7
+
+  "c++": `#include <iostream>
+
+int sum(int a, int b) {
+  return a + b;
+}
+
+int main() {
+  std::cout << sum(3, 4) << std::endl;
+  return 0;
+}`, // Output: 7
+
+  go: `package main
+
+import "fmt"
+
+func sum(a, b int) int {
+  return a + b
+}
+
+func main() {
+  fmt.Println(sum(3, 4))
+}
+`, // Output: 7
+
+  java: `public class Main {
+    public static int sum(int a, int b) {
+        return a + b;
+    }
+    public static void main(String[] args) {
+        System.out.println(sum(3, 4));
+    }
+}`, // Output: 7
+
+  c: `int sum(int a, int b) {
+  return a + b;
+}
+int main() {
+  printf("%d", sum(3, 4));
+  return 0;
+}`, // Output: 7
+
+  octave: `function s = sum(a, b)
+  s = a + b;
+end
+
+disp(sum(3, 4));`, // Output: 7
+  perl: `sub sum {
+    my ($a, $b) = @_;
+    return $a + $b;
+}
+
+print sum(3, 4) . "\n";
+  `,
+  powershell: `function Sum($a, $b) {
+    return $a + $b
+}
+
+Write-Output (Sum 3 4)
+`,
+  scala: `object SumApp {
+  def sum(a: Int, b: Int): Int = {
+    a + b
+  }
+
+  def main(args: Array[String]): Unit = {
+    println(sum(3, 4))
+  }
+}
+`,
+  sqlite3: `SELECT 3 + 4;`,
+  swift: `func sum(a: Int, b: Int) -> Int {
+    return a + b
+}
+
+print(sum(a: 3, b: 4))
+`,
+  julia: `function sum(a, b)
+    return a + b
+end
+
+println(sum(3, 4))
+`,
+  rscript: `sum <- function(a, b) {
+  return(a + b)
+}
+
+print(sum(3, 4))
+`,
+};
