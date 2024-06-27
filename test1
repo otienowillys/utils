@@ -1,5 +1,14 @@
 # 🌐 Git Repository Management Steps
 
+## 🖥️ Checking if Git is Installed
+- **Command**: `git --version`
+- **Explanation**: This command checks if Git is installed and displays the installed version.
+
+## 🗂️ Navigating to Desired Directory
+- **Command**: `cd path/to/directory`
+- **Parameter**:
+  - `path/to/directory`: Path to the directory where you want to clone the repository.
+
 ## 📥 Cloning a Specific Branch
 - **Command**: `git clone -b branch-name --single-branch repository-url`
 - **Parameters**:
