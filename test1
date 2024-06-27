@@ -1,0 +1,31 @@
+# 🌐 Git Repository Management Steps
+
+## 📥 Cloning a Specific Branch
+- **Command**: `git clone -b branch-name --single-branch repository-url`
+- **Parameters**:
+  - `branch-name`: Name of the branch to clone.
+  - `repository-url`: URL of the Git repository.
+
+## 📁 Changing Directory to the Repository Folder
+- **Command**: `cd repository-name`
+- **Parameter**:
+  - `repository-name`: Name of the folder created by cloning.
+
+## 📄 Adding New or Changed Documents to Staging Area
+- **Command**: `git add .`
+- **Explanation**: Adds all new and changed files to the staging area. Replace `.` with specific file names to add selectively.
+
+## 📝 Committing Changes to the Repository
+- **Command**: `git commit -m 'commit-message'`
+- **Parameter**:
+  - `commit-message`: A brief description of the changes made.
+
+## 🔃 Pulling Latest Changes from Remote Repository
+- **Command**: `git pull origin branch-name`
+- **Parameters**:
+  - `branch-name`: Name of the branch to pull updates from.
+
+## ⬆️ Pushing Changes to the Remote Repository
+- **Command**: `git push origin branch-name`
+- **Parameters**:
+  - `branch-name`: Name of the branch to push changes to.
