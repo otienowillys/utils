@@ -1,0 +1,153 @@
+
+Below is a SAS utility code that performs the following data checks:
+
+Checks for missing values in variables.
+Checks for missing dates.
+Checks for contradictory values in connected variables.
+
+
+%macro data_check(data=, var_list=, date_var=, connect_var1=, connect_var2=, status_value=, contradict_value=);
+
+    /* Step 1: Check for missing values in variables */
+    data missing_values;
+        set &data;
+        array vars {*} &var_list;
+        do i = 1 to dim(vars);
+            if missing(vars{i}) then output;
+        end;
+        keep i;
+    run;
+
+    proc print data=missing_values;
+        title "Missing Values Check";
+    run;
+
+    /* Step 2: Check for missing dates */
+    data missing_dates;
+        set &data;
+        if missing(&date_var) then output;
+    run;
+
+    proc print data=missing_dates;
+        title "Missing Dates Check";
+    run;
+
+    /* Step 3: Check for contradictory values in connected variables */
+    data contradictory_values;
+        set &data;
+        if &connect_var1 = "&status_value" and &connect_var2 = "&contradict_value" then output;
+    run;
+
+    proc print data=contradictory_values;
+        title "Contradictory Values Check";
+    run;
+
+%mend data_check;
+
+/* Example usage */
+%data_check(
+    data=sashelp.class, 
+    var_list=age height weight, 
+    date_var=date_of_birth, /* Replace with actual date variable */
+    connect_var1=status,    /* Replace with actual status variable */
+    connect_var2=progress,  /* Replace with actual progress variable */
+    status_value=Complete,  /* Replace with actual status value */
+    contradict_value=Not_Started  /* Replace with actual contradictory value */
+);
+
+Explanation:
+Step 1: Check for missing values
+
+The macro iterates over the list of variables (var_list) to check for missing values.
+If a missing value is found, the observation is outputted to the missing_values dataset.
+Step 2: Check for missing dates
+
+The macro checks if the specified date variable (date_var) has missing values.
+If a missing date is found, the observation is outputted to the missing_dates dataset.
+Step 3: Check for contradictory values
+
+The macro checks if the connected variables (connect_var1 and connect_var2) have contradictory values.
+If a contradiction is found (e.g., status is "Complete" but progress is "Not_Started"), the observation is outputted to the contradictory_values dataset.
+Adjust the example usage to fit your actual dataset and variable names.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Sure, here are the detailed steps to fork a repository and create a pull request on GitHub:
+
+Step 1: Fork the Repository
+Go to the GitHub repository page you want to fork.
+Click the "Fork" button at the top right of the page.
+Choose your GitHub account or the organization to which you want to fork the repository.
+Wait for the repository to be forked. You will be redirected to the new forked repository under your GitHub account.
+
+Step 2: Clone the Forked Repository
+Navigate to your forked repository on GitHub.
+Click the "Code" button.
+Copy the repository URL (HTTPS, SSH, or GitHub CLI).
+Open your terminal (Git Bash, Command Prompt, etc.).
+Run the git clone command followed by the copied URL:
+
+
+
+git clone https://github.com/your-username/forked-repo.git
+
+Navigate into the cloned repository directory:
+
+
+cd forked-repo
+
+Step 3: Create a New Branch
+Create a new branch for your changes:
+
+git checkout -b your-branch-name
+Make sure you're on the new branch by checking your branch status:
+
+git branch
+Step 4: Make Changes
+Make the necessary changes to the code or documentation in your local repository.
+Stage the changes for commit:
+
+git add .
+Commit the changes with a descriptive message:
+
+git commit -m "Description of the changes made"
+Step 5: Push Changes to GitHub
+Push your changes to your forked repository on GitHub:
+
+git push origin your-branch-name
+
+Step 6: Create a Pull Request
+Navigate to your forked repository on GitHub.
+Click the "Compare & pull request" button that appears after pushing your changes.
+Provide a title and description for your pull request. Describe what changes you made and why.
+Select the base repository and branch you want to merge your changes into (usually the original repository's main branch).
+Click the "Create pull request" button.
+
+Step 7: Review and Address Feedback
+Wait for the repository maintainers to review your pull request.
+Address any feedback or requested changes by making additional commits to your branch:
+
+git add .
+git commit -m "Addressed feedback: fixed issue with ..."
+git push origin your-branch-name
+
+Step 8: Merge the Pull Request
+Once your pull request is approved, the maintainers will merge it into the base repository.
+Optionally, you can delete your branch after the pull request is merged:
+
+git branch -d your-branch-name
+git push origin --delete your-branch-name
+
+By following these steps, you can successfully fork a repository, make changes, and create a pull request on GitHub.
+
