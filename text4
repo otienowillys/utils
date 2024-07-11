@@ -151,3 +151,80 @@ git push origin --delete your-branch-name
 
 By following these steps, you can successfully fork a repository, make changes, and create a pull request on GitHub.
 
+
+
+
+%let project_dir = /path/to/your/project/data-quality-ml;
+
+%macro create_dir(path);
+    %if %sysfunc(fileexist(&path)) %then
+        %put Directory &path already exists.;
+    %else
+        %do;
+            options noxwait;
+            x "mkdir -p &path";
+            %put Directory &path created.;
+        %end;
+%mend create_dir;
+
+/* Create the main project directory */
+%create_dir(&project_dir);
+
+/* Create subdirectories */
+%create_dir(&project_dir/config);
+%create_dir(&project_dir/data/raw);
+%create_dir(&project_dir/data/processed);
+%create_dir(&project_dir/data/external);
+%create_dir(&project_dir/data/interim);
+%create_dir(&project_dir/notebooks);
+%create_dir(&project_dir/src/data_preprocessing);
+%create_dir(&project_dir/src/models);
+%create_dir(&project_dir/src/utils);
+%create_dir(&project_dir/src/pipelines);
+%create_dir(&project_dir/tests);
+%create_dir(&project_dir/docs);
+%create_dir(&project_dir/scripts);
+
+/* Create empty files */
+data _null_;
+    file "&project_dir/README.md";
+    file "&project_dir/setup.py";
+    file "&project_dir/requirements.txt";
+    file "&project_dir/.gitignore";
+    file "&project_dir/config/config.yaml";
+    file "&project_dir/config/logging.yaml";
+    file "&project_dir/notebooks/data_exploration.ipynb";
+    file "&project_dir/notebooks/model_training.ipynb";
+    file "&project_dir/notebooks/data_visualization.ipynb";
+    file "&project_dir/src/__init__.py";
+    file "&project_dir/src/data_preprocessing/__init__.py";
+    file "&project_dir/src/data_preprocessing/data_cleaning.py";
+    file "&project_dir/src/data_preprocessing/feature_engineering.py";
+    file "&project_dir/src/data_preprocessing/data_validation.py";
+    file "&project_dir/src/models/__init__.py";
+    file "&project_dir/src/models/model_training.py";
+    file "&project_dir/src/models/model_evaluation.py";
+    file "&project_dir/src/models/model_selection.py";
+    file "&project_dir/src/utils/__init__.py";
+    file "&project_dir/src/utils/io.py";
+    file "&project_dir/src/utils/logging.py";
+    file "&project_dir/src/utils/visualization.py";
+    file "&project_dir/src/pipelines/__init__.py";
+    file "&project_dir/src/pipelines/training_pipeline.py";
+    file "&project_dir/src/pipelines/prediction_pipeline.py";
+    file "&project_dir/tests/__init__.py";
+    file "&project_dir/tests/test_data_cleaning.py";
+    file "&project_dir/tests/test_feature_engineering.py";
+    file "&project_dir/tests/test_model_training.py";
+    file "&project_dir/tests/test_model_evaluation.py";
+    file "&project_dir/docs/architecture.md";
+    file "&project_dir/docs/data_dictionary.md";
+    file "&project_dir/docs/user_guide.md";
+    file "&project_dir/scripts/run_training.sh";
+    file "&project_dir/scripts/run_prediction.sh";
+    file "&project_dir/Dockerfile";
+run;
+
+%put Project structure created successfully.;
+
+
