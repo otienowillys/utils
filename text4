@@ -228,3 +228,74 @@ run;
 %put Project structure created successfully.;
 
 
+
+
+%let project_dir = /path/to/your/project/data-quality-ml;
+
+%macro create_dirs;
+    %local base_dir;
+
+    /* Main project directory */
+    %let base_dir = %sysfunc(dcreate(data-quality-ml, /path/to/your/project));
+
+    /* Subdirectories */
+    %sysfunc(dcreate(config, &base_dir));
+    %sysfunc(dcreate(data, &base_dir));
+    %sysfunc(dcreate(raw, &base_dir/data));
+    %sysfunc(dcreate(processed, &base_dir/data));
+    %sysfunc(dcreate(external, &base_dir/data));
+    %sysfunc(dcreate(interim, &base_dir/data));
+    %sysfunc(dcreate(notebooks, &base_dir));
+    %sysfunc(dcreate(src, &base_dir));
+    %sysfunc(dcreate(data_preprocessing, &base_dir/src));
+    %sysfunc(dcreate(models, &base_dir/src));
+    %sysfunc(dcreate(utils, &base_dir/src));
+    %sysfunc(dcreate(pipelines, &base_dir/src));
+    %sysfunc(dcreate(tests, &base_dir));
+    %sysfunc(dcreate(docs, &base_dir));
+    %sysfunc(dcreate(scripts, &base_dir));
+%mend create_dirs;
+
+%create_dirs;
+
+data _null_;
+    file "&project_dir/README.md";
+    file "&project_dir/setup.py";
+    file "&project_dir/requirements.txt";
+    file "&project_dir/.gitignore";
+    file "&project_dir/config/config.yaml";
+    file "&project_dir/config/logging.yaml";
+    file "&project_dir/notebooks/data_exploration.ipynb";
+    file "&project_dir/notebooks/model_training.ipynb";
+    file "&project_dir/notebooks/data_visualization.ipynb";
+    file "&project_dir/src/__init__.py";
+    file "&project_dir/src/data_preprocessing/__init__.py";
+    file "&project_dir/src/data_preprocessing/data_cleaning.py";
+    file "&project_dir/src/data_preprocessing/feature_engineering.py";
+    file "&project_dir/src/data_preprocessing/data_validation.py";
+    file "&project_dir/src/models/__init__.py";
+    file "&project_dir/src/models/model_training.py";
+    file "&project_dir/src/models/model_evaluation.py";
+    file "&project_dir/src/models/model_selection.py";
+    file "&project_dir/src/utils/__init__.py";
+    file "&project_dir/src/utils/io.py";
+    file "&project_dir/src/utils/logging.py";
+    file "&project_dir/src/utils/visualization.py";
+    file "&project_dir/src/pipelines/__init__.py";
+    file "&project_dir/src/pipelines/training_pipeline.py";
+    file "&project_dir/src/pipelines/prediction_pipeline.py";
+    file "&project_dir/tests/__init__.py";
+    file "&project_dir/tests/test_data_cleaning.py";
+    file "&project_dir/tests/test_feature_engineering.py";
+    file "&project_dir/tests/test_model_training.py";
+    file "&project_dir/tests/test_model_evaluation.py";
+    file "&project_dir/docs/architecture.md";
+    file "&project_dir/docs/data_dictionary.md";
+    file "&project_dir/docs/user_guide.md";
+    file "&project_dir/scripts/run_training.sh";
+    file "&project_dir/scripts/run_prediction.sh";
+    file "&project_dir/Dockerfile";
+run;
+
+%put Project structure created successfully.;
+
