@@ -1,0 +1,53 @@
+cp -r D:/2024/npm-publish-libraries/app-testing/lexical/packages/lexical-playground D:/2024/npm-publish-libraries/app-testing
+
+mv D:/2024/npm-publish-libraries/app-testing/lexical-playground D:/2024/npm-publish-libraries/app-testing/app-playground 
+
+rm D:/2024/npm-publish-libraries/app-testing/app-playground/vite.config.ts 
+rm D:/2024/npm-publish-libraries/app-testing/app-playground/vite.prod.config.ts
+rm D:/2024/npm-publish-libraries/app-testing/app-playground/viteCopyEsm.ts
+
+rm D:/2024/npm-publish-libraries/app-testing/app-playground/index.html
+
+rm -rf D:/2024/npm-publish-libraries/app-testing/app-playground/__tests__
+rm -rf D:/2024/npm-publish-libraries/app-testing/app-playground/esm
+rm -rf D:/2024/npm-publish-libraries/app-testing/app-playground/split
+
+
+mv D:/2024/npm-publish-libraries/app-testing/app-playground/src  D:/2024/npm-publish-libraries/app-testing/app-playground/components 
+
+pnpm create next-app editorapp
+#cd app-playground
+
+
+cp -r D:/2024/npm-publish-libraries/app-testing/app-playground/components D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp
+
+
+cp favicon.ico favicon-16x16.png favicon-32x32.png apple-touch-icon.png D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/app
+
+
+cp -r D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/components/images D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/public 
+
+rm -rf D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/components/images
+
+mv D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/components D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/editor
+
+mkdir p D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/components
+
+mv D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/editor D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/components
+
+
+
+cp -r D:/2024/npm-publish-libraries/app-testing/lexical/packages/shared/src D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/components/editor
+
+mv D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/components/editor/src D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/components/editor/shared
+
+#rm -rf D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/components/editor/shared/__mocks__
+
+mkdir D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/components/editor/lib
+
+
+cd components/editor
+mv appSettings.ts Settings.tsx setupEnv.ts collaboration.ts D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/components/editor/lib
+#cp Editor.tsx D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/components/editor
+
+
