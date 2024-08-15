@@ -1,0 +1,258 @@
+Creating a detailed naming convention for DOCX documents in GitHub can help manage and track document changes effectively without creating duplicates. Here's a detailed naming convention proposal:
+
+Naming Convention Structure
+Prefix-DocumentType-Subject-OrTopic
+
+Prefix: A short identifier for the project or team.
+DocumentType: A standardized code for the type of document.
+Subject: The main subject or topic of the document.
+OrTopic: Additional descriptors to specify the document further if needed.
+Examples
+Prefix:
+
+PRJ: Project-related documents.
+TEAM: Team-specific documents.
+CLIENT: Client-related documents.
+DocumentType:
+
+REQ: Requirements.
+DES: Design.
+MTG: Meeting notes.
+RPT: Report.
+MEMO: Memorandum.
+Subject:
+
+Main topic or focus of the document. Use concise and descriptive words.
+OrTopic:
+
+Additional information to distinguish similar documents.
+Complete Examples
+Project Requirements for a New Feature:
+
+PRJ-REQ-NewFeature
+Design Document for User Interface:
+
+PRJ-DES-UI
+Meeting Notes for Team Standup:
+
+TEAM-MTG-Standup
+Client Report for Monthly Review:
+
+CLIENT-RPT-MonthlyReview
+Versioning and Date Management Inside the Document
+To ensure the date and version information are included inside the document and not in the name, follow these steps:
+
+Header/Footer Inclusion: Add the version and date to the header or footer of the DOCX document.
+Document Properties: Use the document properties feature in Word to include metadata like version, date, author, etc.
+Workflow in GitHub
+Initial Commit: Commit the document with its initial version without any version number in the filename.
+
+Filename: PRJ-REQ-NewFeature.docx
+Updating Document:
+
+Open the document and update the content.
+Update the version number and date inside the document (e.g., v1.1_20240809).
+Commit Changes:
+
+Save and commit the updated document with the same filename.
+GitHub will track the changes in the document through the commit history.
+Example Workflow
+Initial document creation:
+
+Filename: PRJ-REQ-NewFeature.docx
+Inside document: Version: v1.0, Date: 2024-08-08
+First update:
+
+Update content and change inside document to: Version: v1.1, Date: 2024-08-09
+Commit changes with a message: Update requirement for new feature to v1.1
+Subsequent updates:
+
+Continue updating the document content.
+Increment the version number and update the date inside the document.
+Commit each change with an appropriate commit message.
+By following this naming convention and workflow, you can effectively manage DOCX documents in GitHub, track changes through commit history, and avoid creating duplicate files.
+
+
+
+
+
+
+
+
+
+
+
+
+
+1. Clone the Repository
+First, clone the repository to your local machine. You can do this using the git clone command followed by the repository URL.
+
+
+git clone <repository-url>
+cd <repository-name>
+
+
+2. Check Out Each Commit Sequentially
+You need to check out each commit sequentially to understand the changes made at each step. Use the following commands to list and check out commits:
+List All Commits
+
+
+git log --oneline
+
+This will display a list of commits with their short SHA (commit ID) and commit message.
+
+Check Out a Specific Commit
+
+git checkout <commit-id>
+
+Replace <commit-id> with the actual commit ID you want to check out.
+
+3. Review Changes Made in Each Commit
+For each commit, review the changes made. You can do this using the git show command:
+
+
+git show <commit-id>
+This will show the changes introduced in the specified commit.
+
+4. Document or Implement Changes Locally
+While reviewing each commit, document the changes or implement them step by step in your own local environment. This helps in understanding the incremental development process.
+
+5. Move to the Next Commit
+After reviewing and documenting the changes in one commit, move to the next commit. You can do this by checking out the next commit ID:
+
+
+git checkout <next-commit-id>
+Alternatively, you can use:
+
+
+git checkout HEAD~1
+This command checks out the previous commit relative to the current one.
+
+6. Repeat Until All Commits Are Reviewed
+Repeat the process until you have reviewed and documented all the commits from the start to the latest.
+
+7. Switch Back to the Latest Commit
+Once you have reviewed all commits, you can switch back to the latest commit using:
+
+
+git checkout main
+or
+
+
+git checkout master
+depending on the default branch name.
+
+Additional Tips
+Create a Separate Branch: If you want to make changes or experiments, create a new branch from each commit to keep your work organized.
+
+
+git checkout -b <new-branch-name>
+Use git diff: To see differences between commits, use the git diff command:
+
+
+git diff <commit-id1> <commit-id2>
+Commit Messages: Pay close attention to commit messages as they often contain useful context about the changes.
+
+Example Workflow
+# Clone the repository
+git clone https://github.com/user/repo.git
+cd repo
+
+# List all commits
+git log --oneline
+
+# Check out the first commit
+git checkout abc1234
+
+# Review the changes in the first commit
+git show abc1234
+
+# Document or implement changes locally
+
+# Move to the next commit
+git checkout def5678
+
+# Repeat the process
+git show def5678
+Following these steps will help you re-create the project from scratch by understanding and applying each change made in the commits.
+
+
+
+
+
+
+
+To list the files added in each commit using git show, you can use the --name-status option. This will display the status of each file (e.g., added, modified, deleted) in the commit.
+
+Here is how you can do it:
+
+
+git show --name-status <commit-id>
+Example
+
+# Show details of a specific commit with files added/modified/deleted
+git show --name-status abc1234
+This will provide you with output like this:
+
+
+commit abc1234
+Author: Your Name <you@example.com>
+Date:   Mon Aug 10 10:00:00 2024 +0000
+
+    Commit message
+
+A       file1.txt
+M       file2.txt
+D       file3.txt
+In this example:
+
+A indicates a file was added.
+M indicates a file was modified.
+D indicates a file was deleted.
+Iterating Through Commits to List Added Files
+If you want to list only the files added across all commits, you can use a loop in the terminal:
+
+
+git log --pretty=format:"%h" | while read commit; do
+  echo "Commit: $commit"
+  git show --name-status $commit | grep ^A
+done
+This will iterate through each commit and list only the files that were added.
+
+Complete Workflow with Listing Added Files
+Here’s the complete workflow for cloning the repository, listing the files added in each commit, and checking out each commit sequentially:
+
+
+# Clone the repository
+git clone https://github.com/user/repo.git
+cd repo
+
+# List all commits
+commits=$(git log --pretty=format:"%h")
+
+# Iterate through each commit to list files added
+for commit in $commits; do
+  echo "Commit: $commit"
+  git show --name-status $commit | grep ^A
+done
+This script will output the commit ID followed by the list of files added in each commit.
+
+Using git diff for a More Granular View
+If you want a more granular view of the changes between commits, including added, modified, and deleted files, you can use git diff:
+
+
+git diff --name-status <commit-id1> <commit-id2>
+This will show you the differences between two commits, including which files were added, modified, or deleted.
+
+Example Usage of git diff
+
+# Compare two commits
+git diff --name-status abc1234 def5678
+This will output:
+
+css
+Copy code
+A       newfile.txt
+M       modifiedfile.txt
+D       deletedfile.txt
+By following these steps, you will be able to see the files added in each commit, understand the changes made, and recreate the steps from scratch.
