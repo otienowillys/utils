@@ -51,3 +51,15 @@ mv appSettings.ts Settings.tsx setupEnv.ts collaboration.ts D:/2024/npm-publish-
 #cp Editor.tsx D:/2024/npm-publish-libraries/app-testing/app-playground/editorapp/components/editor
 
 
+pnpm add @lexical/yjs
+
+
+
+use if needed
+
+npm cache clean --force
+rm -rf node_modules package-lock.json
+rm -rf .next/cache
+
+
+
