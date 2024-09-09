@@ -45,7 +45,17 @@ class Program
 
                 // Generate the corresponding output Excel file name
                 string excelFileName = Path.GetFileNameWithoutExtension(docxPath) + ".xlsx";
-                string excelPath = Path.Combine(Path.GetDirectoryName(docxPath), excelFileName);
+                
+                // Safely get the directory path
+                string? directoryPath = Path.GetDirectoryName(docxPath);
+                if (directoryPath == null)
+                {
+                    Console.WriteLine($"Could not determine the directory for: {docxPath}");
+                    continue; // Skip if the directory path is null
+                }
+
+                // Combine the directory path with the Excel file name
+                string excelPath = Path.Combine(directoryPath, excelFileName);
 
                 // Create a new Excel package
                 using (ExcelPackage excelPackage = new ExcelPackage())
