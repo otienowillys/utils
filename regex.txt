@@ -10,8 +10,11 @@ run;
 /* Step 2: Concatenate Rows Based on { and } */
 data combined_data;
     set mydata;
-    length full_text $5000; /* Adjust length as needed */
-    retain full_text in_braces 0; /* Track whether we're inside braces */
+    length full_text $5000; /* Declare full_text as a character variable */
+    retain full_text; /* Retain the full_text variable */
+    
+    /* Initialize in_braces as a numeric variable */
+    retain in_braces 0; /* Track whether we're inside braces */
 
     /* Check if the row starts with '{' */
     if index(your_column_name, '{') then do;
@@ -38,7 +41,7 @@ data combined_data;
     end;
 run;
 
-/* Step 3: Extract Text Between Curly Braces */
+/* Step 3: Extract Text Between Curly Braces and Check for Specific Pattern */
 data extracted_data;
     set combined_data;
 
@@ -56,8 +59,19 @@ data extracted_data;
         extracted_text = ''; /* If no match found */
     end;
 
+    /* Initialize a flag variable */
+    length pattern_found 8; /* Declare pattern_found as a numeric variable */
+    pattern_found = 0; /* Default value is 0 */
+
+    /* Check for the specific pattern _toc_ followed by 6 digits */
+    if prxmatch('/_toc_\d{6}/', full_text) then do;
+        /* If a match is found, remove it and set the flag to 1 */
+        full_text = prxchange('s/_toc_\d{6}//o', -1, full_text);
+        pattern_found = 1; /* Set flag to 1 if pattern was found */
+    end;
+
     /* Keep only the necessary columns */
-    keep extracted_text;
+    keep extracted_text full_text pattern_found;
 run;
 
 proc print data=extracted_data;
