@@ -1,0 +1,56 @@
+/* Step 1: Import the Excel Data */
+proc import datafile="path/to/data.xlsx"
+    out=mydata
+    dbms=xlsx
+    replace;
+    sheet="Sheet1";
+    getnames=yes;
+run;
+
+/* Step 2: Concatenate Rows */
+data combined_data;
+    set mydata;
+    length full_text $5000; /* Adjust length as needed */
+    retain full_text;
+
+    /* Concatenate rows */
+    if not missing(your_column_name) then do;
+        full_text = catx(' ', full_text, your_column_name);
+    end;
+
+    /* Reset full_text if a new logical section starts */
+    if last_row_condition then do; /* Adjust this condition as necessary */
+        output; /* Output concatenated result for this logical section */
+        full_text = ''; /* Reset for the next section */
+    end;
+
+    /* If this is the last row, output it */
+    if eof then do;
+        output;
+    end;
+run;
+
+/* Step 3: Extract Text Between Curly Braces */
+data extracted_data;
+    set combined_data;
+
+    /* Regular expression to find text between curly braces */
+    retain regex;
+    if _N_ = 1 then do;
+        regex = prxparse('/\{(.*?)\}/');
+    end;
+
+    /* Extract the text */
+    if prxmatch(regex, full_text) then do;
+        extracted_text = prxposn(regex, 1, full_text);
+    end;
+    else do;
+        extracted_text = ''; /* If no match found */
+    end;
+
+    /* Keep only the necessary columns */
+    keep extracted_text;
+run;
+
+proc print data=extracted_data;
+run;
