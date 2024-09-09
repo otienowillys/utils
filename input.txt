@@ -1,0 +1,59 @@
+// See https://aka.ms/new-console-template for more information
+using System;
+using System.IO;
+using System.Linq;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
+using OfficeOpenXml;
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        string docxPath = @"C:\Users\Downloads\INPUT-1.docx"; // Change this path to your input DOCX file
+        string excelPath = @"C:\Users\Downloads\output-2.xlsx"; // Change this path to your desired output Excel file
+
+        ConvertDocxToExcel(docxPath, excelPath);
+    }
+
+  static void ConvertDocxToExcel(string docxPath, string excelPath)
+    {
+        // Load the DOCX file
+        using (WordprocessingDocument? wordDoc = WordprocessingDocument.Open(docxPath, false))
+        {
+            if (wordDoc == null)
+            {
+                Console.WriteLine("Failed to open the DOCX file.");
+                return; // Early exit if the document could not be opened
+            }
+
+            var body = wordDoc.MainDocumentPart?.Document.Body;
+            if (body == null)
+            {
+                Console.WriteLine("The document does not contain any content.");
+                return; // Early exit if the document body is null
+            }
+
+            var paragraphs = body.Elements<Paragraph>().Select(p => p.InnerText).ToList();
+
+            // Create a new Excel package
+            using (ExcelPackage excelPackage = new ExcelPackage())
+            {
+                // Add a new worksheet
+                var worksheet = excelPackage.Workbook.Worksheets.Add("Sheet1");
+
+                // Write paragraphs to the Excel file
+                for (int i = 0; i < paragraphs.Count; i++)
+                {
+                    worksheet.Cells[i + 1, 1].Value = paragraphs[i]; // Writing to column A
+                }
+
+                // Save the Excel file
+                FileInfo excelFile = new FileInfo(excelPath);
+                excelPackage.SaveAs(excelFile);
+            }
+        }
+
+        Console.WriteLine("Conversion completed!");
+    }
+}
