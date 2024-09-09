@@ -7,25 +7,33 @@ proc import datafile="path/to/data.xlsx"
     getnames=yes;
 run;
 
-/* Step 2: Concatenate Rows */
+/* Step 2: Concatenate Rows Based on { and } */
 data combined_data;
     set mydata;
     length full_text $5000; /* Adjust length as needed */
-    retain full_text;
+    retain full_text in_braces 0; /* Track whether we're inside braces */
 
-    /* Concatenate rows */
-    if not missing(your_column_name) then do;
-        full_text = catx(' ', full_text, your_column_name);
+    /* Check if the row starts with '{' */
+    if index(your_column_name, '{') then do;
+        in_braces + 1; /* Increment if we find an opening brace */
     end;
 
-    /* Reset full_text if a new logical section starts */
-    if last_row_condition then do; /* Adjust this condition as necessary */
-        output; /* Output concatenated result for this logical section */
+    /* Concatenate the current row */
+    full_text = catx(' ', full_text, your_column_name);
+
+    /* Check if the row ends with '}' */
+    if index(your_column_name, '}') then do;
+        in_braces - 1; /* Decrement if we find a closing brace */
+    end;
+
+    /* Output the accumulated text if we're back to zero braces */
+    if in_braces = 0 and full_text ne '' then do;
+        output; /* Output the concatenated result */
         full_text = ''; /* Reset for the next section */
     end;
 
-    /* If this is the last row, output it */
-    if eof then do;
+    /* If this is the last row, check if there's any remaining text */
+    if eof and full_text ne '' then do;
         output;
     end;
 run;
