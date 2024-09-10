@@ -74,5 +74,21 @@ data extracted_data;
     keep extracted_text full_text pattern_found;
 run;
 
+/* Step 4: Move extracted_text to Previous Row if Not Missing */
+data final_data;
+    set extracted_data;
+    retain prev_full_text ''; /* To store previous row's full_text */
+
+    /* If extracted_text is not missing, concatenate it with the previous full_text */
+    if extracted_text ne '' then do;
+        full_text = catx(' ', prev_full_text, extracted_text);
+        extracted_text = ''; /* Clear extracted_text as it's now moved */
+    end;
+
+    /* Output the current full_text and store it as prev_full_text for the next iteration */
+    prev_full_text = full_text; /* Store current full_text for the next row */
+    output; /* Output the current row */
+run;
+
 proc print data=extracted_data;
 run;
