@@ -94,17 +94,14 @@ proc print data=extracted_data;
 run;
 
 
- /* Initialize variable for extracted digits */
-    length extracted_digits $50; /* Adjust length as needed */
-    extracted_digits = ''; /* Initialize to an empty string */
+/* Initialize variable for digits extraction */
+    extracted_digits = '';
 
     /* Regular expression to check if left_part starts with a digit */
     if prxmatch('/^\d/', left_part) then do;
-        /* Extract all digits from left_part */
-        extracted_digits = prxchange('s/[^0-9]//o', -1, left_part); /* Remove non-digit characters */
+        /* Regular expression to extract all digits and '.' */
+        /* This will extract digits and '.' until a space or character not allowed is found */
+        retain regex;
+        if _N_ = 1 then regex = prxparse('/[0-9.]+/'); /* Match digits and '.' */
+        extracted_digits = prxchange('s/.*?([0-9.]+).*/\1/', -1, left_part); /* Extract the digits and '.' */
     end;
-
-    /* Print the results */
-    put original_string=;
-    put left_part=;
-    put extracted_digits=;
