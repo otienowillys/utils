@@ -92,3 +92,19 @@ run;
 
 proc print data=extracted_data;
 run;
+
+
+ /* Initialize variable for extracted digits */
+    length extracted_digits $50; /* Adjust length as needed */
+    extracted_digits = ''; /* Initialize to an empty string */
+
+    /* Regular expression to check if left_part starts with a digit */
+    if prxmatch('/^\d/', left_part) then do;
+        /* Extract all digits from left_part */
+        extracted_digits = prxchange('s/[^0-9]//o', -1, left_part); /* Remove non-digit characters */
+    end;
+
+    /* Print the results */
+    put original_string=;
+    put left_part=;
+    put extracted_digits=;
