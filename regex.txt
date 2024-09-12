@@ -92,15 +92,21 @@ run;
 
 proc print data=extracted_data;
 run;
-/* Check if left_part starts with a numeric digit using regex */
-    if prxmatch('/^\d/', left_part) then do;
-        /* Extract all numbers and the '.' from left_part */
-        /* The regex \d+(\.\d+)* matches numbers with optional decimal parts */
-        if prxmatch('/^\d/', left_part) then do;
-            regex = prxparse('/\d+(\.\d+)?/'); /* Match numbers with optional decimal */
-            extracted_numbers = prxchange('s/.*?(\d+(\.\d+)?).*/\1/', -1, left_part); /* Extract the numbers */
-        end;
+  /* Initialize variables */
+    length extracted_value $50 text_after_extracted $200;
+    extracted_value = '';
+    text_after_extracted = '';
+
+    /* Regular expression to check if left_part starts with a digit */
+    if prxmatch('/^\d+(\.\d+)*[ ]?/', left_part) then do;
+        /* Extract all numbers and "." */
+        /* This regex captures the initial numeric pattern */
+        extracted_value = prxchange('s/^(\d+(\.\d+)*).*/\1/', 1, left_part);
+        
+        /* Extract the text after the extracted value */
+        text_after_extracted = prxchange('s/^\d+(\.\d+)*[ ]?(.*)/\2/', 1, left_part);
     end;
     else do;
-        extracted_numbers = ''; /* If it does not start with a digit, set to empty */
+        /* If it doesn't start with a digit, keep left_part in text_after_extracted */
+        text_after_extracted = left_part;
     end;
