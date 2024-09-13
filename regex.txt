@@ -129,3 +129,10 @@ run;
     if index(upcase(left_part), 'REFERENCE') > 0 then do;
         has_reference = 1; /* Set to 1 if 'reference' is found */
     end;
+
+
+
+    /* Check if 'REFERENCE' is at the start of left_part */
+    if prxmatch('/^REFERENCE/i', left_part) then do;
+        has_reference = 1; /* Set to 1 if 'REFERENCE' is at the start */
+    end;
