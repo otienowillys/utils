@@ -123,3 +123,9 @@ quit;
 /* Print the merged data */
 proc print data=merged_data;
 run;
+
+
+   /* Check if 'reference' is in the left_part */
+    if index(upcase(left_part), 'REFERENCE') > 0 then do;
+        has_reference = 1; /* Set to 1 if 'reference' is found */
+    end;
