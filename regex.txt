@@ -110,3 +110,16 @@ run;
         /* If it doesn't start with a digit, keep left_part in text_after_extracted */
         text_after_extracted = left_part;
     end;
+
+/* Merge using PROC SQL */
+proc sql;
+    create table merged_data as
+    select a.*, b.*
+    from dataset1 as a
+    left join dataset2 as b
+    on a.text_after_extracted = b.text_after_extracted;
+quit;
+
+/* Print the merged data */
+proc print data=merged_data;
+run;
