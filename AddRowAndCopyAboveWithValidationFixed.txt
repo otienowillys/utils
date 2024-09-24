@@ -1,0 +1,30 @@
+
+Sub AddRowAndCopyAboveWithValidationFixed()
+    Dim selectedRow As Long
+    Dim ws As Worksheet
+    Dim cell As Range
+
+    ' Set the active sheet
+    Set ws = ActiveSheet
+
+    ' Get the row number of the active cell
+    selectedRow = ActiveCell.Row
+
+    ' Insert a new row below the selected cell's row
+    ws.Rows(selectedRow + 1).Insert Shift:=xlDown
+
+    ' Copy the content from the row above the selected cell into the new row
+    ws.Rows(selectedRow).Copy Destination:=ws.Rows(selectedRow + 1)
+
+    ' Now, copy the data validation from each cell in the row above
+    On Error Resume Next ' Ignore errors if cells do not have validation
+    For Each cell In ws.Rows(selectedRow).Cells
+        If cell.Validation.Type <> xlNone Then
+            cell.Validation.Copy Destination:=ws.Cells(selectedRow + 1, cell.Column)
+        End If
+    Next cell
+    On Error GoTo 0 ' Resume normal error handling
+
+    ' Optionally, clear the active cell selection to avoid confusion
+    ActiveCell.Offset(1, 0).Select
+End Sub
