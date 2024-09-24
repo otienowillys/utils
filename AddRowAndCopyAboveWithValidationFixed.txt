@@ -28,3 +28,26 @@ Sub AddRowAndCopyAboveWithValidationFixed()
     ' Optionally, clear the active cell selection to avoid confusion
     ActiveCell.Offset(1, 0).Select
 End Sub
+
+
+Sub UndoAddRowAndCopyAboveWithValidation()
+    Dim selectedRow As Long
+    Dim ws As Worksheet
+    
+    ' Set the active sheet
+    Set ws = ActiveSheet
+
+    ' Get the row number of the active cell
+    selectedRow = ActiveCell.Row
+
+    ' Ensure that the row below the selected cell is deleted (undo the previous macro)
+    If Not IsEmpty(ws.Cells(selectedRow + 1, 1)) Then
+        ' Delete the row below the selected cell's row
+        ws.Rows(selectedRow + 1).Delete Shift:=xlUp
+    Else
+        MsgBox "There is no row to delete."
+    End If
+
+    ' Optionally, clear the active cell selection to avoid confusion
+    ActiveCell.Select
+End Sub
