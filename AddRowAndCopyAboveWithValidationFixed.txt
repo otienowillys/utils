@@ -79,3 +79,32 @@ Sub UndoAddRowAndCopyAbove()
     ActiveCell.Select
 End Sub
 
+Sub DeleteRowWithShape()
+    Dim shp As Shape
+    Dim ws As Worksheet
+    Dim selectedRow As Long
+    Dim response As VbMsgBoxResult
+    
+    ' Set the active sheet
+    Set ws = ActiveSheet
+    
+    ' Get the shape (image or button) that triggered the macro
+    Set shp = ws.Shapes(Application.Caller)
+
+    ' Get the row number where the shape (image) is located
+    selectedRow = shp.TopLeftCell.Row
+    
+    ' Ask the user if they want to proceed with deleting the row
+    response = MsgBox("Are you sure you want to delete the row where this image is located?", vbYesNo + vbQuestion, "Delete Row Confirmation")
+
+    ' If the user clicks 'Yes', proceed to delete the row
+    If response = vbYes Then
+        ' Delete the row where the shape is located
+        ws.Rows(selectedRow).Delete Shift:=xlUp
+        MsgBox "Row deleted.", vbInformation, "Success"
+    Else
+        MsgBox "Action canceled.", vbInformation, "Cancel"
+    End If
+End Sub
+
+
