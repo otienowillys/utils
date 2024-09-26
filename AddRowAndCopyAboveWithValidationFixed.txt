@@ -51,3 +51,31 @@ Sub UndoAddRowAndCopyAboveWithValidation()
     ' Optionally, clear the active cell selection to avoid confusion
     ActiveCell.Select
 End Sub
+
+Sub UndoAddRowAndCopyAbove()
+    Dim selectedRow As Long
+    Dim ws As Worksheet
+    Dim response As VbMsgBoxResult
+
+    ' Set the active sheet
+    Set ws = ActiveSheet
+
+    ' Get the row number of the active cell
+    selectedRow = ActiveCell.Row
+
+    ' Ask user if they want to proceed with deleting the row
+    response = MsgBox("Are you sure you want to delete the row below?", vbYesNo + vbQuestion, "Delete Row Confirmation")
+
+    ' If the user clicks 'Yes', proceed to delete the row
+    If response = vbYes Then
+        ' Delete the row immediately below the selected cell's row
+        ws.Rows(selectedRow + 1).Delete Shift:=xlUp
+        MsgBox "Row deleted.", vbInformation, "Success"
+    Else
+        MsgBox "Action canceled.", vbInformation, "Cancel"
+    End If
+
+    ' Optionally, clear the active cell selection to avoid confusion
+    ActiveCell.Select
+End Sub
+
