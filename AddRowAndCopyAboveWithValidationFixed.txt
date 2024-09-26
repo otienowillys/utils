@@ -108,3 +108,6 @@ Sub DeleteRowWithShape()
 End Sub
 
 
+=TEXTJOIN("", TRUE, IF(ISNUMBER(MID(A1, ROW(INDIRECT("1:" & LEN(A1))), 1) * 1), MID(A1, ROW(INDIRECT("1:" & LEN(A1))), 1), ""))
+
+
