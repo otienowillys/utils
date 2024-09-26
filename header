@@ -1,0 +1,63 @@
+Sub ConsolidateSpecificSheets()
+
+    Dim ws As Worksheet
+    Dim wsConsolidated As Worksheet
+    Dim LastRow As Long
+    Dim PasteRow As Long
+    Dim HeadersCopied As Boolean
+    Dim wsNames As Variant
+    Dim wsName As Variant
+    Dim SourceRange As Range
+    Dim HeaderRange As Range
+
+    ' List of sheet names to consolidate (add the sheet names here)
+    wsNames = Array("Sheet1", "Sheet2", "Sheet3") ' Modify with your actual sheet names
+    
+    ' Create a new sheet called "Consolidated" or clear it if it exists
+    On Error Resume Next
+    Set wsConsolidated = Sheets("Consolidated")
+    If wsConsolidated Is Nothing Then
+        Set wsConsolidated = ThisWorkbook.Sheets.Add
+        wsConsolidated.Name = "Consolidated"
+    Else
+        wsConsolidated.Cells.Clear
+    End If
+    On Error GoTo 0
+    
+    ' Initialize paste row on the consolidated sheet
+    PasteRow = 1
+    HeadersCopied = False
+    
+    ' Loop through the specified sheet names
+    For Each wsName In wsNames
+        On Error Resume Next
+        Set ws = ThisWorkbook.Sheets(wsName)
+        On Error GoTo 0
+        
+        If Not ws Is Nothing Then
+            ' Find the last used row in the current sheet
+            LastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+            
+            ' Copy headers if not already copied
+            If Not HeadersCopied Then
+                Set HeaderRange = ws.Rows(1)
+                HeaderRange.Copy Destination:=wsConsolidated.Rows(PasteRow)
+                PasteRow = PasteRow + 1
+                HeadersCopied = True
+            End If
+            
+            ' Copy data (starting from row 2 to exclude the header)
+            Set SourceRange = ws.Range("A2:A" & LastRow).EntireRow
+            SourceRange.Copy Destination:=wsConsolidated.Cells(PasteRow, 1)
+            
+            ' Update the paste row position for the next sheet's data
+            PasteRow = wsConsolidated.Cells(wsConsolidated.Rows.Count, "A").End(xlUp).Row + 1
+        End If
+        
+        ' Reset ws to Nothing for the next iteration
+        Set ws = Nothing
+    Next wsName
+    
+    MsgBox "Consolidation Complete!"
+
+End Sub
