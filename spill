@@ -40,3 +40,11 @@ Sub AutoFitSpillRangeForSpecificSheet()
         spillRange.Rows.AutoFit
     End If
 End Sub
+
+Private Sub Workbook_SheetCalculate(ByVal Sh As Object)
+    ' Call the macro to auto-fit the spill range on the specific sheet
+    If Sh.Name = "Sheet1" Then
+        AutoFitSpillRangeForSpecificSheet
+    End If
+End Sub
+
