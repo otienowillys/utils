@@ -21,3 +21,22 @@ Private Sub Worksheet_Change(ByVal Target As Range)
         End If
     End If
 End Sub
+
+
+Sub AutoFitSpillRangeForSpecificSheet()
+    Dim ws As Worksheet
+    Dim spillRange As Range
+    
+    ' Specify the sheet you want to target (e.g., "Sheet1")
+    Set ws = ThisWorkbook.Sheets("Sheet1")
+    
+    ' Specify the starting cell of your FILTER function spill (adjust "A1" accordingly)
+    On Error Resume Next
+    Set spillRange = ws.Range("A1").SpillingToRange
+    On Error GoTo 0
+    
+    ' If there is a spill range, autofit the rows
+    If Not spillRange Is Nothing Then
+        spillRange.Rows.AutoFit
+    End If
+End Sub
