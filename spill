@@ -1,0 +1,23 @@
+Private Sub Worksheet_Change(ByVal Target As Range)
+    Dim spillRange As Range
+    
+    ' Check if the first cell of the spill range is A1 (adjust this for your formula cell)
+    If Not Intersect(Target, Range("A1")) Is Nothing Then
+        ' Check if the cell contains a dynamic array formula
+        If Target.HasArray Then
+            ' Get the spilled range
+            On Error Resume Next
+            Set spillRange = Target.SpillingToRange
+            On Error GoTo 0
+            
+            If Not spillRange Is Nothing Then
+                ' Apply the formatting to the spilled range
+                With spillRange
+                    .Interior.Color = RGB(255, 255, 200) ' Light yellow fill
+                    .Font.Bold = True ' Bold font
+                    .Borders.LineStyle = xlContinuous ' Border style
+                End With
+            End If
+        End If
+    End If
+End Sub
