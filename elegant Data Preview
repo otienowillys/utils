@@ -1,0 +1,66 @@
+/* Sample dataset */
+data my_data;
+    input Name $ Age Salary;
+    datalines;
+John 30 55000
+Mary 25 60000
+Tom 40 75000
+Lucy 35 68000
+;
+run;
+
+/* Export the data to Excel */
+proc export data=my_data
+    outfile='/path/to/output/my_data.xlsx'
+    dbms=xlsx replace;
+run;
+
+/* Prepare the HTML email body */
+filename mymail email
+    to='recipient@example.com'
+    subject='Attached XLSX and Elegant Data Preview'
+    attach='/path/to/output/my_data.xlsx' /* Attaching the Excel file */
+    type='text/html'; /* Email body as HTML */
+
+/* Write the HTML content for the email body */
+data _null_;
+    file mymail;
+
+    /* Start of HTML structure with inline CSS */
+    put '<html>';
+    put '<head>';
+    put '<style>';
+    put 'body { font-family: Arial, sans-serif; color: #333; background-color: #f9f9f9; padding: 20px; }';
+    put 'h2 { color: #4a90e2; text-align: center; font-size: 24px; }';
+    put 'table { width: 100%; border-collapse: collapse; margin: 20px 0; }';
+    put 'th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }';
+    put 'th { background-color: #4a90e2; color: white; font-size: 18px; }';
+    put 'tr:hover { background-color: #f1f1f1; }';
+    put 'td { font-size: 16px; }';
+    put 'p { text-align: center; font-size: 14px; color: #777; }';
+    put '</style>';
+    put '</head>';
+
+    put '<body>';
+    put '<h2>Elegant Data Preview</h2>';
+
+    /* Create an HTML table with enhanced design */
+    put '<table>';
+    put '<tr>';
+    put '<th>Name</th><th>Age</th><th>Salary</th>';
+    put '</tr>';
+
+    /* Loop through the dataset and populate the table */
+    set my_data;
+    put '<tr>';
+    put '<td>' Name '</td>';
+    put '<td>' Age '</td>';
+    put '<td>' Salary '</td>';
+    put '</tr>';
+
+    /* End of table and HTML */
+    put '</table>';
+    put '<p>The complete data is available in the attached Excel file.</p>';
+    put '</body>';
+    put '</html>';
+run;
