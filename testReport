@@ -70,3 +70,73 @@ data _null_;
    put '</body>';
    put '</html>';
 run;
+
+
+
+
+
+/* Step 1: Import the Excel file */
+proc import datafile="/path/to/your/example_table.xlsx"
+    out=report_data
+    dbms=xlsx
+    replace;
+    sheet="Sheet1"; /* Adjust based on your Excel sheet name */
+run;
+
+/* Step 2: Generate dynamic HTML for the email */
+filename mymail email
+   to=("recipient@example.com")
+   from="sender@example.com"
+   subject="✨ Your Excel Report is Ready! ✨"
+   attach=("/path/to/your/example_table.xlsx")
+   type="text/html";
+
+data _null_;
+   file mymail;
+   put '<html>';
+   put '<head>';
+   put '<style>';
+   /* General body styling */
+   put '  body {font-family: "Helvetica Neue", Arial, sans-serif; color: #333; background-color: #f4f4f9; margin: 0; padding: 0; text-align: center;}';
+   put '  .container {max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff; border-radius: 15px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);}';
+   put '  h1 {color: #4CAF50; font-size: 32px; margin-bottom: 10px; font-weight: bold;}';
+   put '  p {font-size: 16px; line-height: 1.6; color: #555;}';
+   put '  .section {background-color: #e0f7fa; padding: 20px; border-radius: 10px; margin: 20px 0;}';
+   put '  .highlight {font-size: 18px; color: #00796b; font-weight: bold;}';
+   put '  table {width: 100%; border-collapse: collapse; margin-top: 20px; text-align: left;}';
+   put '  table, th, td {border: 1px solid #ddd; padding: 12px; font-size: 14px;}';
+   put '  th {background-color: #4CAF50; color: white;}';
+   put '  td {background-color: #f9f9f9;}';
+   put '  tr:hover {background-color: #f1f1f1;}';
+   put '</style>';
+   put '</head>';
+   put '<body>';
+   put '<div class="container">';
+   put '<h1>✨ Hello, Friend! ✨</h1>';
+   put '<p>We are thrilled to share your latest report! Below is a quick overview of the details you requested. Be sure to check out the attached Excel file for the full report. We hope you find it insightful!</p>';
+   
+   /* Start of the dynamic HTML table */
+   put '<div class="section">';
+   put '<p class="highlight">📊 Report Summary</p>';
+   put '<table>';
+   put '  <tr><th>Number</th><th>Employer</th><th>First Name</th><th>Last Name</th><th>Date of Birth</th><th>Education</th><th>Country</th></tr>';
+   
+   /* Step 3: Dynamically generate table rows */
+   set report_data;
+   put '  <tr><td>' Number '</td><td>' Employer '</td><td>' First_Name '</td><td>' Last_Name '</td><td>' Date_of_Birth '</td><td>' Education '</td><td>' Country '</td></tr>';
+   
+   put '</table>';
+   put '</div>';
+   put '<p>🎉 Feel free to reach out if you have any questions or need further assistance. We are always here to help!</p>';
+   
+   /* Footer */
+   put '<div class="footer">';
+   put '<p>With our best wishes,</p>';
+   put '<p><strong>Your Amazing Team</strong></p>';
+   put '</div>';
+   
+   put '</div>'; /* End of container */
+   put '</body>';
+   put '</html>';
+run;
+
