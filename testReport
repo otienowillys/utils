@@ -713,3 +713,99 @@ run;
 
 
 
+
+
+
+
+
+/* Step 2: Generate dynamic HTML for the email */
+filename mymail email
+   to=("recipient@example.com")
+   from="sender@example.com"
+   subject="✨ Your Excel Report is Ready! ✨"
+   attach=("/path/to/your/example_table.xlsx")
+   type="text/html";
+
+data _null_;
+   file mymail;
+   
+   /* Start of the email with header and opening content */
+   put '<html>';
+   put '<head>';
+   put '<style>';
+   
+   /* General body styling */
+   put '  body {font-family: "Helvetica Neue", Arial, sans-serif; color: #333; background-color: #f4f4f9; margin: 0; padding: 0; text-align: left;}'; 
+   put '  .container {max-width: 700px; margin: 0 auto; padding: 20px; background-color: #ffffff; border-radius: 15px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);}';
+   
+   /* Header styling */
+   put '  h1 {color: #007BFF; font-size: 32px; margin-bottom: 10px; font-weight: bold; text-align: left;}'; /* Left-align the heading */
+   put '  p {font-size: 16px; line-height: 1.6; color: #555; text-align: left;}'; /* Left-align paragraphs */
+   
+   /* Section and table styling */
+   put '  .section {background-color: #e0f7fa; padding: 20px; border-radius: 10px; margin: 20px 0;}';
+   put '  .highlight {font-size: 18px; color: #007BFF; font-weight: bold; text-align: left;}'; /* Make the section title bold and blue */
+
+   /* Table styling */
+   put '  table {width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed;}'; /* Use fixed table layout */
+   put '  th, td {border: 1px solid #007BFF; padding: 5px; font-size: 14px; text-align: left; vertical-align: top;}'; /* Reduce padding and align top */
+   put '  th {background-color: #007BFF; color: white; text-align: left; font-weight: bold; white-space: nowrap;}'; /* No wrap for headers */
+   put '  td {background-color: #f9f9f9; text-align: left; white-space: nowrap;}'; /* No wrap for table cells */
+
+   /* Hover effect for rows */
+   put '  tr:hover {background-color: #f1faff;}'; /* Light blue hover effect */
+   
+   /* Styling for the footer */
+   put '  .footer {margin-top: 20px; text-align: left; font-size: 14px; color: #333;}';
+   put '</style>';
+   put '</head>';
+   put '<body>';
+   put '<div class="container">';
+   
+   /* Email content (outside the table) */
+   put '<h1>✨ Hello, Friend! ✨</h1>';
+   put '<p>We are thrilled to share your latest report! Below is a quick overview of the details you requested. Be sure to check out the attached Excel file for the full report. We hope you find it insightful!</p>';
+   
+   /* Table content starts here */
+   put '<div class="section">';
+   put '<p class="highlight">📊 Report Summary</p>';
+   
+   /* Print the table header only once */
+   if _N_ = 1 then do;
+      put '<table>';
+      put '  <tr><th>Number</th><th>Employer</th><th>First Name</th><th>Last Name</th><th>Date of Birth</th><th>Education</th><th>Country</th></tr>';
+   end;
+   
+   /* Print the table rows dynamically for each observation */
+   set report_data end=eof;
+   put '  <tr><td>' Number '</td><td>' Employer '</td><td>' First_Name '</td><td>' Last_Name '</td><td>' Date_of_Birth '</td><td>' Education '</td><td>' Country '</td></tr>';
+   
+   /* Print the last row and close the table at the end of the dataset */
+   if eof then do;
+      put '</table>'; /* Close the table */
+   end;
+   
+   put '</div>'; /* Close section div */
+
+   /* Additional email content outside the table */
+   put '<p>🎉 Feel free to reach out if you have any questions or need further assistance. We are always here to help!</p>';
+   
+   /* Footer */
+   put '<div class="footer">';
+   put '<p>With our best wishes,</p>';
+   put '<p><strong>Your Amazing Team</strong></p>';
+   put '</div>';
+   
+   put '</div>'; /* End of container */
+   put '</body>';
+   put '</html>';
+run;
+
+
+
+
+
+
+
+
+
