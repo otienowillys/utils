@@ -11,38 +11,36 @@ Private Const DATA_SHEET_NAME As String = "IntakeData"
 '==============================================
 Public Sub SubmitIntake()
     On Error GoTo ErrHandler
-    
-    ' Disable screen updates & auto-calculation for performance
+
+    ' Disable screen updating & auto-calculation for performance
     Application.ScreenUpdating = False
     Application.Calculation = xlCalculationManual
-    
+
     Dim wsInput As Worksheet, wsData As Worksheet
     Set wsInput = ThisWorkbook.Sheets(INPUT_SHEET_NAME)
     Set wsData = ThisWorkbook.Sheets(DATA_SHEET_NAME)
-    
+
     ' Validate required fields (B2:B7)
     If Not ValidateForm(wsInput) Then
         MsgBox "Please fill in all required fields.", vbExclamation, "Missing Information"
         wsInput.Activate
         GoTo CleanExit
     End If
-    
+
     ' Determine next available Entry ID
     Dim entryId As Long
     entryId = GetNextEntryId(wsData)
-    
+
     ' Display the email and ask for confirmation before sending
     If SendEmail(wsInput, entryId) Then
         ' Save to IntakeData
         SaveFormData wsInput, wsData, entryId
         ' Clear IntakeForm fields
         ClearForm wsInput
-        
-        ' Format the data sheet if necessary
-        If wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row > 1 Then
-            FormatDataSheet wsData
-        End If
-        
+
+        ' Format the data sheet
+        FormatDataSheet wsData
+
         MsgBox "Entry #" & entryId & " has been processed successfully!", vbInformation, "Submission Successful"
         wsInput.Activate
         wsInput.Range("B2").Select
@@ -95,13 +93,13 @@ Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
     Dim outApp As Object, outMail As Object
     Set outApp = CreateObject("Outlook.Application")
     Set outMail = outApp.CreateItem(0)
-    
+
     With outMail
         .To = wsInput.Range("B3").Value   ' Recipient email
         .Subject = "Form Submission #" & entryId
         .HTMLBody = BuildEmailHTML(wsInput, entryId)
         .Display  ' Show email for review
-        
+
         ' Confirm before sending
         If MsgBox("Send this email?", vbQuestion + vbYesNo, "Send Confirmation") = vbYes Then
             On Error Resume Next
@@ -140,7 +138,7 @@ Private Function BuildEmailHTML(ws As Worksheet, entryId As Long) As String
             "th{background-color:#007bff;color:white;font-weight:bold;}" & _
             "tr:nth-child(even){background-color:#f9f9f9;}" & _
             ".footer{text-align:center;color:#777;font-size:14px;margin-top:20px;}"
-    
+
     Dim htmlBody As String
     htmlBody = "<html><head><style>" & style & "</style></head><body>" & _
                "<h2>Form Submission #" & entryId & "</h2>" & _
@@ -154,7 +152,7 @@ Private Function BuildEmailHTML(ws As Worksheet, entryId As Long) As String
                "</table>" & _
                "<div class='footer'>This is an automated message. Please do not reply.</div>" & _
                "</body></html>"
-    
+
     BuildEmailHTML = htmlBody
 End Function
 
@@ -169,16 +167,29 @@ Private Sub SaveFormData(wsInput As Worksheet, wsData As Worksheet, entryId As L
         wsData.Range("A1:H1").Font.Bold = True
         wsData.Range("A1:H1").Interior.Color = RGB(240, 240, 240)
     End If
-    
+
     ' Find next available row
     Dim nextRow As Long
     nextRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row + 1
-    
+
     ' Store values
     wsData.Cells(nextRow, 1).Value = entryId
     wsData.Cells(nextRow, 2).Resize(1, 6).Value = wsInput.Range("B2:B7").Value
     wsData.Cells(nextRow, 8).Value = Now
     wsData.Cells(nextRow, 8).NumberFormat = "yyyy-mm-dd hh:mm:ss"
+End Sub
+
+'==============================================
+' Sub: FormatDataSheet
+' Applies formatting to IntakeData for better readability.
+'==============================================
+Private Sub FormatDataSheet(wsData As Worksheet)
+    With wsData
+        .UsedRange.EntireColumn.AutoFit
+        .Columns("A:H").HorizontalAlignment = xlLeft
+        .Range("A1:H1").Font.Bold = True
+        .Range("A1:H1").Interior.Color = RGB(240, 240, 240)
+    End With
 End Sub
 
 '==============================================
