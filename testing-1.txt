@@ -166,18 +166,16 @@ Private Function BuildEmailHTML(ws As Worksheet, entryId As Long) As String
 End Function
 
 '==============================================
-' Sub: SaveFormData
-' Saves the form data into IntakeData after email is sent.
+' Sub: FormatDataSheet
+' Formats the IntakeData sheet for better readability.
 '==============================================
-Private Sub SaveFormData(wsInput As Worksheet, wsData As Worksheet, entryId As Long)
-    Dim nextRow As Long
-    nextRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row + 1
-
-    ' Store values
-    wsData.Cells(nextRow, 1).Value = entryId
-    wsData.Cells(nextRow, 2).Resize(1, 6).Value = wsInput.Range("B2:B7").Value
-    wsData.Cells(nextRow, 8).Value = Now
-    wsData.Cells(nextRow, 8).NumberFormat = "yyyy-mm-dd hh:mm:ss"
+Private Sub FormatDataSheet(wsData As Worksheet)
+    With wsData
+        .UsedRange.EntireColumn.AutoFit
+        .Columns("A:H").HorizontalAlignment = xlLeft
+        .Range("A1:H1").Font.Bold = True
+        .Range("A1:H1").Interior.Color = RGB(240, 240, 240)
+    End With
 End Sub
 
 '==============================================
