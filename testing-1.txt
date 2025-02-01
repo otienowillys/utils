@@ -6,43 +6,31 @@ Private Const DATA_SHEET_NAME As String = "IntakeData"
 Public Sub SubmitIntake()
     On Error GoTo ErrHandler
 
-    ' Disable screen updating and calculations for speed
     Application.ScreenUpdating = False
     Application.Calculation = xlCalculationManual
 
-    ' Initialize worksheets
     Dim wsInput As Worksheet, wsData As Worksheet
     Set wsInput = ThisWorkbook.Worksheets(INPUT_SHEET_NAME)
     Set wsData = ThisWorkbook.Worksheets(DATA_SHEET_NAME)
 
-    ' Validate form
     If Not ValidateForm(wsInput) Then
         MsgBox "Please fill in all required fields", vbExclamation
         wsInput.Activate
         GoTo CleanExit
     End If
 
-    ' Get next ID
     Dim entryId As Long
     entryId = GetNextEntryId(wsData)
 
-    ' Try to send email
     If SendEmail(wsInput, entryId) Then
-        ' If email sent successfully, then accumulate data
         SaveFormData wsInput, wsData, entryId
-
-        ' Clear the form
         ClearForm wsInput
 
-        ' Format the data sheet (Only if data was added)
         If wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row > 1 Then
             FormatDataSheet wsData
         End If
 
-        ' Show success message
         MsgBox "Entry #" & entryId & " has been processed successfully", vbInformation
-
-        ' Activate the input form for next entry
         wsInput.Activate
         wsInput.Range("B2").Select
     End If
@@ -83,15 +71,15 @@ Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
     Set outMail = outApp.CreateItem(0)
 
     With outMail
-        .To = wsInput.Range("B3").Value ' Correct email address from the form
-        .Subject = "Form Submission #" & entryId
-        .HTMLBody = BuildEmailHTML(wsInput, entryId)
+      .To = wsInput.Range("B3").Value ' Email from the form
+      .Subject = "Form Submission #" & entryId
+      .HTMLBody = BuildEmailHTML(wsInput, entryId)
 
-        .Display ' Display for preview
+      .Display
 
         If MsgBox("Send this email?", vbQuestion + vbYesNo) = vbYes Then
             On Error Resume Next
-            .Send
+          .Send
             If Err.Number = 0 Then
                 SendEmail = True
             Else
@@ -112,79 +100,104 @@ End Function
 
 Private Function BuildEmailHTML(ws As Worksheet, entryId As Long) As String
     Dim style As String
-    style = "body{font:13px Arial;color:#333}div{margin:8px 0}.card{max-width:500px;margin:auto;border:1px solid #ddd;border-radius:3px}" & _
-            ".head{background:#f8f9fa;padding:12px;border-bottom:1px solid #ddd}.title{font-size:16px;font-weight:bold;color:#2b579a}" & _
-            "table{width:100%;border-collapse:collapse;margin:12px}th{background:#f8f9fa;text-align:left}td,th{padding:8px;border:1px solid #ddd}" & _
-            ".foot{background:#f8f9fa;padding:8px;text-align:center;color:#666;font-size:11px;border-top:1px solid #ddd}"
+    style = "body{font:16px Arial;color:#333;background-color:#f4f4f4;}" & _
+            "table{width:90%;max-width:600px;margin:20px auto;border-collapse:collapse;box-shadow:0 4px 8px rgba(0,0,0,0.1);}" & _
+            "th{background-color:#007bff;color:white;text-align:left;padding:12px;border-bottom:2px solid #ddd;font-weight:500;}" & _
+            "td{background-color:white;padding:12px;border-bottom:1px solid #eee;}" & _
+            "tr:hover{background-color:#f0f0f0;}" & _
+            "h2{color:#333;text-align:center;margin-bottom:20px;}" & _
+            ".footer{text-align:center;color:#777;font-size:14px;margin-top:20px;}"
 
     Dim data As String
-    data = "<div class='card'><div class='head'><div class='title'>Form Submission</div>Entry #" & entryId & "</div>" & _
-            "<table><tr><th>Name</th><td>" & ws.Range("B2").Value & "</td></tr>" & _
-            "<tr><th>Email</th><td>" & ws.Range("B3").Value & "</td></tr>" & _
-            "<tr><th>Phone</th><td>" & ws.Range("B4").Value & "</td></tr>" & _
-            "<tr><th>Company</th><td>" & ws.Range("B5").Value & "</td></tr>" & _
-            "<tr><th>Title</th><td>" & ws.Range("B6").Value & "</td></tr>" & _
-            "<tr><th>Department</th><td>" & ws.Range("B7").Value & "</td></tr></table>" & _
-            "<div class='foot'>Automated message - Do not reply</div></div>"
+    data = "<html><head><style>" & style & "</style></head><body>" & _
+           "<h2>Form Submission #" & entryId & "</h2>" & _
+           "<table>" & _
+           "<tr><th>Name</th><td>" & ws.Range("B2").Value & "</td></tr>" & _
+           "<tr><th>Email</th><td>" & ws.Range("B3").Value & "</td></tr>" & _
+           "<tr><th>Phone</th><td>" & ws.Range("B4").Value & "</td></tr>" & _
+           "<tr><th>Company</th><td>" & ws.Range("B5").Value & "</td></tr>" & _
+           "<tr><th>Title</th><td>" & ws.Range("B6").Value & "</td></tr>" & _
+           "<tr><th>Department</th><td>" & ws.Range("B7").Value & "</td></tr>" & _
+           "</table>" & _
+           "<div class='footer'>Automated message - Do not reply</div>" & _
+           "</body></html>"
 
-    BuildEmailHTML = "<html><head><style>" & style & "</style></head><body>" & data & "</body></html>"
+    BuildEmailHTML = data
 End Function
 
 Private Sub SaveFormData(wsInput As Worksheet, wsData As Worksheet, entryId As Long)
-    ' Initialize headers if needed (Improved check)
     If wsData.Cells(1, 1).Value = "" Then
         With wsData.Range("A1:H1")
-            .Value = Array("Entry ID", "Name", "Email", "Phone", "Company", "Title", "Department", "Timestamp")
-            .Font.Bold = True
-            .Interior.Color = RGB(240, 240, 240)
+          .Value = Array("Entry ID", "Name", "Email", "Phone", "Company", "Title", "Department", "Timestamp")
+          .Font.Bold = True
+          .Interior.Color = RGB(240, 240, 240)
         End With
     End If
 
-    ' Find next row (reliable method)
     Dim nextRow As Long
     nextRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row + 1
 
-    ' Add new data
     With wsData
-        .Cells(nextRow, 1).Value = entryId
-        .Cells(nextRow, 2).Value = wsInput.Range("B2").Value
-        .Cells(nextRow, 3).Value = wsInput.Range("B3").Value
-        .Cells(nextRow, 4).Value = wsInput.Range("B4").Value
-        .Cells(nextRow, 5).Value = wsInput.Range("B5").Value
-        .Cells(nextRow, 6).Value = wsInput.Range("B6").Value
-        .Cells(nextRow, 7).Value = wsInput.Range("B7").Value
-        .Cells(nextRow, 8).Value = Now
+      .Cells(nextRow, 1).Value = entryId
+      .Cells(nextRow, 2).Value = wsInput.Range("B2").Value
+      .Cells(nextRow, 3).Value = wsInput.Range("B3").Value
+      .Cells(nextRow, 4).Value = wsInput.Range("B4").Value
+      .Cells(nextRow, 5).Value = wsInput.Range("B5").Value
+      .Cells(nextRow, 6).Value = wsInput.Range("B6").Value
+      .Cells(nextRow, 7).Value = wsInput.Range("B7").Value
+      .Cells(nextRow, 8).Value = Now
 
-        .Cells(nextRow, 8).NumberFormat = "yyyy-mm-dd hh:mm:ss"
+      .Cells(nextRow, 8).NumberFormat = "yyyy-mm-dd hh:mm:ss"
     End With
 End Sub
+
+Option Explicit
+
+'... (Other subs and functions are the same as the previous complete example)
 
 Private Sub FormatDataSheet(wsData As Worksheet)
     With wsData
         Dim usedRng As Range
-        Set usedRng = .UsedRange
+        Set usedRng =.UsedRange
 
         usedRng.EntireColumn.AutoFit
 
         With usedRng.Font
-            .Name = "Calibri"
-            .Size = 11
+          .Name = "Calibri"
+          .Size = 11
         End With
 
-        With .Range("A1:H1")
-            .Font.Bold = True
-            .Interior.Color = RGB(240, 240, 240)
-            .Borders(xlBottom).LineStyle = xlContinuous
-            .Borders(xlBottom).Weight = xlMedium
-            .Borders(xlBottom).Color = RGB(180, 180, 180)
+        With.Range("A1:H1")
+          .Font.Bold = True
+          .Interior.Color = RGB(240, 240, 240)
+          .Borders(xlBottom).LineStyle = xlContinuous
+          .Borders(xlBottom).Weight = xlMedium
+          .Borders(xlBottom).Color = RGB(180, 180, 180)
         End With
 
         Dim i As Long
         For i = 2 To usedRng.Rows.Count
             If i Mod 2 = 0 Then
-                .Range("A" & i & ":H" & i).Interior.Color = RGB(252, 252, 252)
+              .Range("A" & i & ":H" & i).Interior.Color = RGB(252, 252, 252)
             End If
         Next i
 
-        .Range("A2").Select
-        Active
+      .Range("A2").Select
+        ActiveWindow.FreezePanes = True
+
+      .Columns("A").ColumnWidth = 8
+      .Columns("H").ColumnWidth = 18
+
+      .Range("A2:A" & usedRng.Rows.Count).HorizontalAlignment = xlCenter
+      .Range("H2:H" & usedRng.Rows.Count).NumberFormat = "yyyy-mm-dd hh:mm:ss"
+
+        ActiveWindow.DisplayGridlines = False ' Optional: Remove gridlines
+      .Range("A1").Select ' Select the first cell
+    End With
+End Sub ' This was the missing line!
+
+Private Sub ClearForm(ws As Worksheet)
+    ws.Range("B2:B7").ClearContents
+    ws.Range("B2").Select
+    ws.Activate
+End Sub
