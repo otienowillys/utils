@@ -127,3 +127,42 @@ Private Sub ClearForm(ws As Worksheet)
     ws.Range("B2:B7").ClearContents
     ws.Range("B2").Select
 End Sub
+
+
+
+Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
+    On Error GoTo EmailError
+    
+    Dim outApp As Object, outMail As Object
+    Set outApp = CreateObject("Outlook.Application")
+    Set outMail = outApp.CreateItem(0)
+    
+    With outMail
+        .To = wsInput.Range("D2").Value
+        .Subject = "Form Submission #" & entryId
+        .HTMLBody = BuildEmailHTML(wsInput, entryId)
+        
+        ' Display for preview
+        .Display
+        
+        ' Ask for confirmation while email is still open
+        If MsgBox("Send this email?", vbQuestion + vbYesNo) = vbYes Then
+            On Error Resume Next
+            .Send
+            If Err.Number = 0 Then
+                SendEmail = True
+            Else
+                MsgBox "Please send the email manually using the open Outlook window.", vbInformation
+            End If
+        End If
+    End With
+
+EmailCleanup:
+    Set outMail = Nothing
+    Set outApp = Nothing
+    Exit Function
+    
+EmailError:
+    MsgBox "Email error: " & Err.Description, vbExclamation
+    Resume EmailCleanup
+End Function
