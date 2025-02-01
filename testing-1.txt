@@ -173,7 +173,6 @@ Private Sub SaveFormData(wsInput As Worksheet, wsData As Worksheet, entryId As L
     Dim nextRow As Long
     nextRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row + 1
 
-    ' Store values
     wsData.Cells(nextRow, 1).Value = entryId
     wsData.Cells(nextRow, 2).Resize(1, 6).Value = wsInput.Range("B2:B7").Value
     wsData.Cells(nextRow, 8).Value = Now
