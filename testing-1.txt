@@ -1,0 +1,293 @@
+Option Explicit
+
+'-------------------------------------------------------------------
+' Module-level Constants
+'-------------------------------------------------------------------
+Private Const INPUT_SHEET_NAME As String = "IntakeForm"
+Private Const DATA_SHEET_NAME As String = "IntakeData"
+
+'-------------------------------------------------------------------
+' Main Entry Point
+'-------------------------------------------------------------------
+Public Sub SubmitIntake()
+    On Error GoTo ErrHandler
+    
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    
+    ' Initialize worksheets
+    Dim wsInput As Worksheet, wsData As Worksheet
+    Set wsInput = ThisWorkbook.Worksheets(INPUT_SHEET_NAME)
+    Set wsData = ThisWorkbook.Worksheets(DATA_SHEET_NAME)
+    
+    ' 1. Validate form data
+    If Not ValidateFormData(wsInput) Then
+        MsgBox "Please fill in all required fields", vbExclamation
+        GoTo CleanExit
+    End If
+    
+    ' 2. Get next entry ID
+    Dim entryId As Long
+    entryId = GetNextEntryId(wsData)
+    
+    ' 3. Send email
+    If Not SendFormEmail(wsInput, entryId) Then
+        GoTo CleanExit
+    End If
+    
+    ' 4. Accumulate data
+    AccumulateFormData wsInput, wsData, entryId
+    
+    ' 5. Clear form
+    ClearIntakeForm wsInput
+    
+    MsgBox "Form submitted successfully!" & vbNewLine & _
+           "Entry ID: " & entryId, vbInformation
+    
+CleanExit:
+    Application.ScreenUpdating = True
+    Application.EnableEvents = True
+    Exit Sub
+
+ErrHandler:
+    MsgBox "Error: " & Err.Description, vbCritical
+    Resume CleanExit
+End Sub
+
+'-------------------------------------------------------------------
+' Data Accumulation
+'-------------------------------------------------------------------
+Private Sub AccumulateFormData(wsInput As Worksheet, wsData As Worksheet, entryId As Long)
+    On Error GoTo ErrorHandler
+    
+    Application.ScreenUpdating = False
+    
+    ' Initialize headers if sheet is empty
+    If wsData.Range("A1").Value = "" Then
+        ' Set up headers
+        With wsData
+            .Range("A1").Value = "Entry ID"
+            .Range("B1").Value = "Name"
+            .Range("C1").Value = "Email"
+            .Range("D1").Value = "Phone"
+            .Range("E1").Value = "Company"
+            .Range("F1").Value = "Title"
+            .Range("G1").Value = "Department"
+            .Range("H1").Value = "Timestamp"
+            
+            ' Format headers
+            With .Range("A1:H1")
+                .Font.Bold = True
+                .Interior.Color = RGB(240, 240, 240)
+                .Borders(xlBottom).LineStyle = xlContinuous
+                .HorizontalAlignment = xlLeft
+            End With
+        End With
+    End If
+    
+    ' Find the last row with data
+    Dim lastRow As Long
+    With wsData
+        lastRow = .Cells(.Rows.Count, "A").End(xlUp).Row
+        lastRow = WorksheetFunction.Max(lastRow, _
+                                      .Cells(.Rows.Count, "B").End(xlUp).Row, _
+                                      .Cells(.Rows.Count, "H").End(xlUp).Row)
+    End With
+    
+    ' If we only have headers, start at row 2, otherwise use next row
+    Dim nextRow As Long
+    nextRow = IIf(lastRow = 1, 2, lastRow + 1)
+    
+    ' Add new record
+    With wsData
+        ' Write data
+        .Cells(nextRow, 1).Value = entryId                    ' Entry ID
+        .Cells(nextRow, 2).Value = wsInput.Range("B2").Value  ' Name
+        .Cells(nextRow, 3).Value = wsInput.Range("B3").Value  ' Email
+        .Cells(nextRow, 4).Value = wsInput.Range("B4").Value  ' Phone
+        .Cells(nextRow, 5).Value = wsInput.Range("B5").Value  ' Company
+        .Cells(nextRow, 6).Value = wsInput.Range("B6").Value  ' Title
+        .Cells(nextRow, 7).Value = wsInput.Range("B7").Value  ' Department
+        .Cells(nextRow, 8).Value = Now()                      ' Timestamp
+        
+        ' Format new row
+        With .Range(.Cells(nextRow, 1), .Cells(nextRow, 8))
+            .Borders.LineStyle = xlContinuous
+            .Font.Name = "Calibri"
+            .Font.Size = 11
+            
+            ' Align columns
+            .Columns(1).HorizontalAlignment = xlCenter    ' Entry ID centered
+            .Columns(8).NumberFormat = "yyyy-mm-dd hh:mm:ss"  ' Timestamp format
+        End With
+        
+        ' AutoFit columns
+        .Columns("A:H").AutoFit
+        
+        ' Select first cell of new row
+        .Cells(nextRow, 1).Select
+        
+        ' Highlight the new row briefly
+        .Range(.Cells(nextRow, 1), .Cells(nextRow, 8)).Interior.Color = RGB(255, 255, 200)
+        Application.Wait Now + TimeValue("00:00:01")
+        .Range(.Cells(nextRow, 1), .Cells(nextRow, 8)).Interior.Color = xlNone
+    End With
+    
+ExitSub:
+    Application.ScreenUpdating = True
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error accumulating data: " & Err.Description, vbExclamation
+    Resume ExitSub
+End Sub
+
+'-------------------------------------------------------------------
+' Email Functions
+'-------------------------------------------------------------------
+Private Function SendFormEmail(wsInput As Worksheet, entryId As Long) As Boolean
+    On Error GoTo EmailError
+    
+    Dim outlookApp As Object, outlookMail As Object
+    Set outlookApp = CreateObject("Outlook.Application")
+    Set outlookMail = outlookApp.CreateItem(0)
+    
+    With outlookMail
+        .To = wsInput.Range("D2").Value  ' Email recipient
+        .Subject = "Form Submission - Entry #" & entryId
+        .HTMLBody = BuildEmailBody(wsInput, entryId)
+        .Display  ' Show email for review
+        
+        ' Ask user to confirm sending
+        Dim response As VbMsgBoxResult
+        response = MsgBox("Send this email now?", vbQuestion + vbYesNo)
+        
+        If response = vbYes Then
+            .Send
+            SendFormEmail = True
+        Else
+            SendFormEmail = False
+        End If
+    End With
+    
+EmailCleanup:
+    Set outlookMail = Nothing
+    Set outlookApp = Nothing
+    Exit Function
+    
+EmailError:
+    MsgBox "Email error: " & Err.Description, vbExclamation
+    SendFormEmail = False
+    Resume EmailCleanup
+End Function
+
+Private Function BuildEmailBody(wsInput As Worksheet, entryId As Long) As String
+    Dim html As String
+    
+    ' Streamlined styling
+    html = "<html><head><style>" & _
+           "* { margin: 0; padding: 0; box-sizing: border-box; }" & _
+           "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; " & _
+           "       line-height: 1.4; background: #f3f4f6; padding: 24px 16px; }" & _
+           ".container { max-width: 580px; margin: 0 auto; background: white; " & _
+           "            border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }" & _
+           ".header { padding: 12px 16px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; }" & _
+           ".header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }" & _
+           ".title { font-size: 15px; font-weight: 500; color: #111827; }" & _
+           ".date { font-size: 12px; color: #6b7280; }" & _
+           ".entry-id { font-size: 13px; color: #2563eb; }" & _
+           ".content { padding: 16px; }" & _
+           ".data-table { width: 100%; border-collapse: separate; border-spacing: 0; " & _
+           "             border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; }" & _
+           "thead { background: #f9fafb; }" & _
+           "th { font-size: 12px; font-weight: 500; color: #6b7280; text-align: left; padding: 8px 16px; }" & _
+           "th:first-child { width: 33%; border-right: 1px solid #e5e7eb; }" & _
+           "td { padding: 10px 16px; font-size: 13px; }" & _
+           "td:first-child { color: #6b7280; border-right: 1px solid #e5e7eb; }" & _
+           "td:last-child { color: #111827; font-weight: 500; }" & _
+           "tbody tr { border-top: 1px solid #e5e7eb; }" & _
+           "tbody tr:hover { background: #f9fafb; }" & _
+           ".footer { padding: 12px 16px; background: #f9fafb; color: #6b7280; " & _
+           "          font-size: 12px; text-align: center; border-top: 1px solid #e5e7eb; }" & _
+           "</style></head><body><div class='container'>"
+
+    ' Header
+    html = html & "<div class='header'>" & _
+           "<div class='header-top'>" & _
+           "<div class='title'>Form Submission</div>" & _
+           "<div class='date'>" & Format(Now(), "mmmm d, yyyy") & "</div></div>" & _
+           "<div class='entry-id'>Entry #" & entryId & "</div></div>"
+    
+    ' Table with clear columns
+    html = html & "<div class='content'>" & _
+           "<table class='data-table'>" & _
+           "<thead><tr>" & _
+           "<th>Input Field</th>" & _
+           "<th>Response</th>" & _
+           "</tr></thead><tbody>"
+    
+    ' Add fields
+    AddFieldToTable html, wsInput, "Name", "B2"
+    AddFieldToTable html, wsInput, "Email", "B3"
+    AddFieldToTable html, wsInput, "Phone", "B4"
+    AddFieldToTable html, wsInput, "Company", "B5"
+    AddFieldToTable html, wsInput, "Title", "B6"
+    AddFieldToTable html, wsInput, "Department", "B7"
+    
+    html = html & "</tbody></table></div>"
+    
+    ' Footer
+    html = html & "<div class='footer'>Automated message - Do not reply</div>" & _
+           "</div></body></html>"
+    
+    BuildEmailBody = html
+End Function
+
+'-------------------------------------------------------------------
+' Helper Functions
+'-------------------------------------------------------------------
+Private Function GetNextEntryId(wsData As Worksheet) As Long
+    ' Find last row with data, checking entry ID column
+    Dim lastRow As Long
+    lastRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row
+    
+    ' If only headers exist (or empty sheet), start with ID 1
+    If lastRow <= 1 Then
+        GetNextEntryId = 1
+    Else
+        ' Get the last ID and add 1
+        GetNextEntryId = wsData.Cells(lastRow, 1).Value + 1
+    End If
+End Function
+
+Private Function ValidateFormData(ws As Worksheet) As Boolean
+    Dim inputRange As Range
+    Set inputRange = ws.Range("B2:B7")  ' Adjust range as needed
+    
+    Dim cell As Range
+    For Each cell In inputRange
+        If Len(Trim(cell.Value)) = 0 Then
+            cell.Select
+            ValidateFormData = False
+            Exit Function
+        End If
+    Next cell
+    
+    ValidateFormData = True
+End Function
+
+Private Sub AddFieldToTable(ByRef html As String, ByVal ws As Worksheet, ByVal fieldName As String, ByVal cellRef As String)
+    If Len(Trim(ws.Range(cellRef).Value)) > 0 Then
+        html = html & "<tr>" & _
+               "<td>" & fieldName & "</td>" & _
+               "<td>" & ws.Range(cellRef).Value & "</td>" & _
+               "</tr>"
+    End If
+End Sub
+
+Private Sub ClearIntakeForm(ws As Worksheet)
+    With ws
+        .Range("B2:B7").ClearContents  ' Clear input fields
+        .Range("B2").Select  ' Move cursor to first input field
+    End With
+End Sub
