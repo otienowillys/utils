@@ -291,3 +291,76 @@ Private Sub ClearIntakeForm(ws As Worksheet)
         .Range("B2").Select  ' Move cursor to first input field
     End With
 End Sub
+
+
+
+
+
+
+Private Function BuildEmailBody(wsInput As Worksheet, entryId As Long) As String
+    Dim html As String
+    
+    ' More compact styling
+    html = "<html><head><style>" & _
+           "* { margin: 0; padding: 0; box-sizing: border-box; }" & _
+           "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; " & _
+           "       line-height: 1.4; background: #f3f4f6; padding: 20px; }" & _
+           ".container { max-width: 520px; margin: 0 auto; background: white; " & _
+           "            border-radius: 8px; border: 1px solid #e5e7eb; " & _
+           "            box-shadow: 0 2px 4px rgba(0,0,0,0.05); }" & _
+           ".header { padding: 12px 16px; " & _
+           "          background: linear-gradient(to bottom, #f9fafb, #ffffff); " & _
+           "          border-bottom: 1px solid #e5e7eb; }" & _
+           ".title { font-size: 14px; font-weight: 500; color: #111827; margin-bottom: 2px; }" & _
+           ".entry-id { font-size: 14px; color: #2563eb; font-weight: 500; }" & _
+           ".content { padding: 12px; }" & _
+           ".table-container { border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; }" & _
+           ".table-header { display: grid; grid-template-columns: 1fr 2fr; background: #f9fafb; " & _
+           "               border-bottom: 1px solid #e5e7eb; }" & _
+           ".header-cell { font-size: 12px; font-weight: 500; color: #6b7280; padding: 8px 12px; }" & _
+           ".header-cell:first-child { border-right: 1px solid #e5e7eb; }" & _
+           ".data-row { display: grid; grid-template-columns: 1fr 2fr; }" & _
+           ".data-row:not(:first-child) { border-top: 1px solid #e5e7eb; }" & _
+           ".cell { padding: 8px 12px; }" & _
+           ".field-cell { font-size: 12px; color: #6b7280; border-right: 1px solid #e5e7eb; }" & _
+           ".response-cell { font-size: 14px; color: #111827; font-weight: 500; }" & _
+           ".footer { padding: 10px 16px; background: #f9fafb; color: #6b7280; " & _
+           "          font-size: 12px; text-align: center; border-top: 1px solid #e5e7eb; }" & _
+           "</style></head><body><div class='container'>"
+
+    ' Header
+    html = html & "<div class='header'>" & _
+           "<div class='title'>Form Submission</div>" & _
+           "<div class='entry-id'>#" & entryId & "</div></div>"
+    
+    ' Table using CSS Grid
+    html = html & "<div class='content'><div class='table-container'>" & _
+           "<div class='table-header'>" & _
+           "<div class='header-cell'>Field</div>" & _
+           "<div class='header-cell'>Response</div></div>"
+    
+    ' Add fields
+    AddFieldToTable html, wsInput, "Name", "B2"
+    AddFieldToTable html, wsInput, "Email", "B3"
+    AddFieldToTable html, wsInput, "Phone", "B4"
+    AddFieldToTable html, wsInput, "Company", "B5"
+    AddFieldToTable html, wsInput, "Title", "B6"
+    AddFieldToTable html, wsInput, "Department", "B7"
+    
+    html = html & "</div></div>"
+    
+    ' Footer
+    html = html & "<div class='footer'>Automated message - Do not reply</div>" & _
+           "</div></body></html>"
+    
+    BuildEmailBody = html
+End Function
+
+Private Sub AddFieldToTable(ByRef html As String, ByVal ws As Worksheet, ByVal fieldName As String, ByVal cellRef As String)
+    If Len(Trim(ws.Range(cellRef).Value)) > 0 Then
+        html = html & "<div class='data-row'>" & _
+               "<div class='cell field-cell'>" & fieldName & "</div>" & _
+               "<div class='cell response-cell'>" & ws.Range(cellRef).Value & "</div>" & _
+               "</div>"
+    End If
+End Sub
