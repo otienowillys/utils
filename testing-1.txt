@@ -1,6 +1,8 @@
 Option Explicit
 
-' Module-level constants for sheet names
+'-------------------------------------------------------------------
+' Module-level Constants
+'-------------------------------------------------------------------
 Private Const INPUT_SHEET_NAME As String = "IntakeForm"
 Private Const DATA_SHEET_NAME As String = "IntakeData"
 
@@ -10,7 +12,7 @@ Private Const DATA_SHEET_NAME As String = "IntakeData"
 Public Sub SubmitIntake()
     On Error GoTo ErrHandler
     
-    ' Disable screen updating and automatic calculation to improve performance
+    ' Disable screen updating and automatic calculation for performance
     Application.ScreenUpdating = False
     Application.Calculation = xlCalculationManual
     
@@ -18,7 +20,7 @@ Public Sub SubmitIntake()
     Set wsInput = ThisWorkbook.Worksheets(INPUT_SHEET_NAME)
     Set wsData = ThisWorkbook.Worksheets(DATA_SHEET_NAME)
     
-    ' Validate the form (checks required fields B2:B7)
+    ' Validate that all required fields (B2:B7) are filled
     If Not ValidateForm(wsInput) Then
         MsgBox "Please fill in all required fields.", vbExclamation
         wsInput.Activate
@@ -29,13 +31,15 @@ Public Sub SubmitIntake()
     Dim entryId As Long
     entryId = GetNextEntryId(wsData)
     
-    ' Display the email for review and send it if the user confirms.
-    ' If the email is sent, then save the data.
+    ' Prepare and display the email for review.
+    ' If the email is sent, then accumulate the data and clear the form.
     If SendEmail(wsInput, entryId) Then
+        ' Save the data in IntakeData
         SaveFormData wsInput, wsData, entryId
+        ' Clear the form in IntakeForm
         ClearForm wsInput
         
-        ' Format the data sheet if it contains more than just headers
+        ' Optionally, format the data sheet if it has more than just headers
         If wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row > 1 Then
             FormatDataSheet wsData
         End If
@@ -75,7 +79,7 @@ End Function
 '==============================================
 ' Function: GetNextEntryId
 ' Returns the next Entry ID based on the last value in column A
-' of the data sheet. If there is no data, returns 1.
+' of the data sheet. If no data exists, returns 1.
 '==============================================
 Private Function GetNextEntryId(wsData As Worksheet) As Long
     Dim lastRow As Long
@@ -91,9 +95,8 @@ End Function
 ' Function: SendEmail
 ' Prepares and displays an Outlook email for review.
 ' The recipient is taken from cell B3 of the input sheet.
-' The email is sent if the user confirms.
-' Returns True if the email was successfully sent.
-'==============================================
+' Returns True if the email is successfully sent.
+'-------------------------------------------------------------------
 Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
     On Error GoTo EmailError
 
@@ -102,15 +105,13 @@ Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
     Set outMail = outApp.CreateItem(0)
     
     With outMail
-        .To = wsInput.Range("B3").Value ' Recipient email from the form
+        .To = wsInput.Range("B3").Value    ' Recipient email from the form
         .Subject = "Form Submission #" & entryId
         .HTMLBody = BuildEmailHTML(wsInput, entryId)
+        .Display   ' Show the email for review
         
-        ' Display the email so the user can review it.
-        .Display
-        
-        ' Prompt the user to send the email.
-        If MsgBox("Send this email?", vbQuestion + vbYesNo) = vbYes Then
+        ' Prompt the user to confirm sending the email
+        If MsgBox("Send this email?", vbQuestion + vbYesNo, "Send Email Confirmation") = vbYes Then
             On Error Resume Next
             .Send
             If Err.Number = 0 Then
@@ -137,9 +138,9 @@ End Function
 
 '==============================================
 ' Function: BuildEmailHTML
-' Returns a string containing the HTML body for the email.
-' The HTML includes a stylish header and a horizontal table
-' displaying the form submission (cells B2:B7) along with the Entry ID.
+' Returns the HTML string for the email body.
+' The HTML includes a stylish header and a table displaying the form data,
+' along with the Entry ID.
 '==============================================
 Private Function BuildEmailHTML(ws As Worksheet, entryId As Long) As String
     Dim style As String
@@ -170,8 +171,8 @@ End Function
 
 '==============================================
 ' Sub: SaveFormData
-' Saves the form data (cells B2:B7) along with the Entry ID and a timestamp
-' into the data sheet. Also writes headers if the sheet is empty.
+' Saves the form data along with the Entry ID and a timestamp in the data sheet.
+' If the data sheet is empty, it writes headers first.
 '==============================================
 Private Sub SaveFormData(wsInput As Worksheet, wsData As Worksheet, entryId As Long)
     ' Write headers if the data sheet is empty
@@ -201,7 +202,7 @@ End Sub
 
 '==============================================
 ' Sub: FormatDataSheet
-' Applies formatting (font, borders, alternating row colors, etc.) to the data sheet.
+' Applies formatting (fonts, borders, alternating row colors, etc.) to the data sheet.
 '==============================================
 Private Sub FormatDataSheet(wsData As Worksheet)
     With wsData
