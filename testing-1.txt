@@ -99,11 +99,14 @@ Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
         .Subject = "Form Submission #" & entryId
         .HTMLBody = BuildEmailHTML(wsInput, entryId)
         .Display  ' Show email for review
+    End With
 
-        ' Confirm before sending
-        If MsgBox("Send this email?", vbQuestion + vbYesNo, "Send Confirmation") = vbYes Then
+    ' Confirm before sending
+    If MsgBox("Send this email?", vbQuestion + vbYesNo, "Send Confirmation") = vbYes Then
+        ' Check if the email is still valid and exists
+        If Not outMail Is Nothing Then
             On Error Resume Next
-            .Send
+            outMail.Send
             If Err.Number = 0 Then
                 SendEmail = True
             Else
@@ -112,9 +115,13 @@ Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
             End If
             On Error GoTo 0
         Else
+            MsgBox "Email item is no longer available. Please send the email manually.", vbExclamation, "Email Not Found"
             SendEmail = False
         End If
-    End With
+    Else
+        MsgBox "Email was not sent. No data was saved.", vbInformation, "Action Canceled"
+        SendEmail = False
+    End If
 
 EmailCleanup:
     Set outMail = Nothing
@@ -161,14 +168,6 @@ End Function
 ' Saves the form data into IntakeData after email is sent.
 '==============================================
 Private Sub SaveFormData(wsInput As Worksheet, wsData As Worksheet, entryId As Long)
-    ' Ensure headers are present
-    If wsData.Cells(1, 1).Value = "" Then
-        wsData.Range("A1:H1").Value = Array("Entry ID", "Name", "Email", "Phone", "Company", "Title", "Department", "Timestamp")
-        wsData.Range("A1:H1").Font.Bold = True
-        wsData.Range("A1:H1").Interior.Color = RGB(240, 240, 240)
-    End If
-
-    ' Find next available row
     Dim nextRow As Long
     nextRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row + 1
 
