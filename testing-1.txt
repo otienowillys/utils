@@ -199,3 +199,55 @@ Private Sub ClearForm(ws As Worksheet)
     ws.Range("B2:B7").ClearContents
     ws.Range("B2").Select
 End Sub
+
+
+Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
+    On Error GoTo EmailError
+
+    Dim outApp As Object, outMail As Object
+    Set outApp = CreateObject("Outlook.Application")
+    Set outMail = outApp.CreateItem(0)  ' Create the email item
+
+    ' Prepare email content
+    With outMail
+        .To = wsInput.Range("B3").Value   ' Recipient email
+        .Subject = "Form Submission #" & entryId
+        .HTMLBody = BuildEmailHTML(wsInput, entryId)
+        .Display  ' Show email for review
+    End With
+
+    ' Ensure the email remains available
+    Dim userResponse As VbMsgBoxResult
+    userResponse = MsgBox("Do you want to send this email now?", vbQuestion + vbYesNo, "Confirm Email Send")
+
+    If userResponse = vbYes Then
+        ' Try to send only if the email is still valid
+        On Error Resume Next
+        If Not outMail Is Nothing Then
+            outMail.Send
+            If Err.Number = 0 Then
+                SendEmail = True
+            Else
+                MsgBox "Failed to send email: " & Err.Description, vbExclamation, "Email Error"
+                SendEmail = False
+            End If
+        Else
+            MsgBox "Email item was moved or deleted. Please send it manually.", vbExclamation, "Email Not Found"
+            SendEmail = False
+        End If
+        On Error GoTo 0
+    Else
+        MsgBox "Email was not sent. No data was saved.", vbInformation, "Action Canceled"
+        SendEmail = False
+    End If
+
+EmailCleanup:
+    Set outMail = Nothing
+    Set outApp = Nothing
+    Exit Function
+
+EmailError:
+    MsgBox "Email error: " & Err.Description & " (Error No: " & Err.Number & ")", vbExclamation, "Email Issue"
+    Resume EmailCleanup
+End Function
+
