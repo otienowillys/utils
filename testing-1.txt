@@ -181,19 +181,6 @@ Private Sub SaveFormData(wsInput As Worksheet, wsData As Worksheet, entryId As L
 End Sub
 
 '==============================================
-' Sub: FormatDataSheet
-' Applies formatting to IntakeData for better readability.
-'==============================================
-Private Sub FormatDataSheet(wsData As Worksheet)
-    With wsData
-        .UsedRange.EntireColumn.AutoFit
-        .Columns("A:H").HorizontalAlignment = xlLeft
-        .Range("A1:H1").Font.Bold = True
-        .Range("A1:H1").Interior.Color = RGB(240, 240, 240)
-    End With
-End Sub
-
-'==============================================
 ' Sub: ClearForm
 ' Clears the IntakeForm fields after data is saved.
 '==============================================
