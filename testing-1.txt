@@ -158,3 +158,65 @@ Private Function GetNextEntryId(wsData As Worksheet) As Long
     lastRow = wsData.Range("A" & wsData.Rows.Count).End(xlUp).Row
     GetNextEntryId = IIf(lastRow = 1, 1, wsData.Cells(lastRow, 1).Value + 1)
 End Function
+
+
+
+
+
+
+Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
+    On Error GoTo EmailError
+    
+    Dim outApp As Object, outMail As Object
+    Set outApp = CreateObject("Outlook.Application")
+    Set outMail = outApp.CreateItem(0)
+    
+    With outMail
+        .To = wsInput.Range("D2").Value
+        .Subject = "Form Submission #" & entryId
+        .HTMLBody = BuildEmailHTML(wsInput, entryId)
+        
+        ' Display for preview
+        .Display
+        
+        ' Ask for confirmation while email is still open
+        If MsgBox("Send this email?", vbQuestion + vbYesNo) = vbYes Then
+            On Error Resume Next
+            .Send
+            If Err.Number = 0 Then
+                SendEmail = True
+            Else
+                MsgBox "Please send the email manually using the open Outlook window.", vbInformation
+            End If
+        End If
+    End With
+
+EmailCleanup:
+    Set outMail = Nothing
+    Set outApp = Nothing
+    Exit Function
+    
+EmailError:
+    MsgBox "Email error: " & Err.Description, vbExclamation
+    Resume EmailCleanup
+End Function
+
+Private Function BuildEmailHTML(ws As Worksheet, entryId As Long) As String
+    Dim style As String
+    style = "body{font:13px Arial;color:#333}div{margin:8px 0}.card{max-width:500px;margin:auto;border:1px solid #ddd;border-radius:3px}" & _
+            ".head{background:#f8f9fa;padding:12px;border-bottom:1px solid #ddd}.title{font-size:16px;font-weight:bold;color:#2b579a}" & _
+            "table{width:100%;border-collapse:collapse;margin:12px}th{background:#f8f9fa;text-align:left}td,th{padding:8px;border:1px solid #ddd}" & _
+            ".foot{background:#f8f9fa;padding:8px;text-align:center;color:#666;font-size:11px;border-top:1px solid #ddd}"
+            
+    Dim data As String
+    data = "<div class='card'><div class='head'><div class='title'>Form Submission</div>Entry #" & entryId & "</div>" & _
+           "<table><tr><th>Name</th><td>" & ws.Range("B2").Value & "</td></tr>" & _
+           "<tr><th>Email</th><td>" & ws.Range("B3").Value & "</td></tr>" & _
+           "<tr><th>Phone</th><td>" & ws.Range("B4").Value & "</td></tr>" & _
+           "<tr><th>Company</th><td>" & ws.Range("B5").Value & "</td></tr>" & _
+           "<tr><th>Title</th><td>" & ws.Range("B6").Value & "</td></tr>" & _
+           "<tr><th>Department</th><td>" & ws.Range("B7").Value & "</td></tr></table>" & _
+           "<div class='foot'>Automated message - Do not reply</div></div>"
+           
+    BuildEmailHTML = "<html><head><style>" & style & "</style></head><body>" & data & "</body></html>"
+End Function
