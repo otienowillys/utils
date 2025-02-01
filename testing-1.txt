@@ -5,36 +5,28 @@ Private Const DATA_SHEET_NAME As String = "IntakeData"
 
 Public Sub SubmitIntake()
     On Error GoTo ErrHandler
-    
     Application.ScreenUpdating = False
-    Application.EnableEvents = False
     
-    ' Get sheets
     Dim wsInput As Worksheet, wsData As Worksheet
     Set wsInput = ThisWorkbook.Worksheets(INPUT_SHEET_NAME)
     Set wsData = ThisWorkbook.Worksheets(DATA_SHEET_NAME)
     
-    ' Validate data
     If Not ValidateForm(wsInput) Then
         MsgBox "Please fill in all required fields", vbExclamation
         GoTo CleanExit
     End If
     
-    ' Get next ID and send email
     Dim entryId As Long
     entryId = GetNextEntryId(wsData)
     
-    If Not SendEmail(wsInput, entryId) Then GoTo CleanExit
-    
-    ' Save data and clear form
-    SaveFormData wsInput, wsData, entryId
-    ClearForm wsInput
-    
-    MsgBox "Entry #" & entryId & " has been submitted successfully", vbInformation
+    If SendEmail(wsInput, entryId) Then
+        SaveFormData wsInput, wsData, entryId
+        ClearForm wsInput
+        MsgBox "Entry #" & entryId & " has been submitted", vbInformation
+    End If
     
 CleanExit:
     Application.ScreenUpdating = True
-    Application.EnableEvents = True
     Exit Sub
     
 ErrHandler:
@@ -43,96 +35,67 @@ ErrHandler:
 End Sub
 
 Private Function ValidateForm(ws As Worksheet) As Boolean
-    Dim inputRange As Range
-    Set inputRange = ws.Range("B2:B7")
-    
     Dim cell As Range
-    For Each cell In inputRange
+    For Each cell In ws.Range("B2:B7")
         If Len(Trim(cell.Value)) = 0 Then
             cell.Select
-            ValidateForm = False
             Exit Function
         End If
     Next cell
-    
     ValidateForm = True
 End Function
 
 Private Sub SaveFormData(wsInput As Worksheet, wsData As Worksheet, entryId As Long)
-    ' Set up headers if needed
-    If wsData.Range("A1").Value = "" Then
-        With wsData
-            .Range("A1").Value = "EntryID"
-            .Range("B1").Value = "Name"
-            .Range("C1").Value = "Email"
-            .Range("D1").Value = "Phone"
-            .Range("E1").Value = "Company"
-            .Range("F1").Value = "Title"
-            .Range("G1").Value = "Department"
-            .Range("H1").Value = "Timestamp"
-            
-            .Range("A1:H1").Font.Bold = True
-            .Range("A1:H1").Interior.Color = RGB(240, 240, 240)
-        End With
-    End If
+    If wsData.Range("A1").Value = "" Then SetupHeaders wsData
     
-    ' Find next row (reliable method)
     Dim nextRow As Long
+    nextRow = wsData.Range("A" & wsData.Rows.Count).End(xlUp).Row + 1
+    
     With wsData
-        nextRow = .Range("A" & .Rows.Count).End(xlUp).Row + 1
-        
-        ' Save data
-        .Range("A" & nextRow).Value = entryId
-        .Range("B" & nextRow).Value = wsInput.Range("B2").Value
-        .Range("C" & nextRow).Value = wsInput.Range("B3").Value
-        .Range("D" & nextRow).Value = wsInput.Range("B4").Value
-        .Range("E" & nextRow).Value = wsInput.Range("B5").Value
-        .Range("F" & nextRow).Value = wsInput.Range("B6").Value
-        .Range("G" & nextRow).Value = wsInput.Range("B7").Value
-        .Range("H" & nextRow).Value = Now()
-        
-        ' Format timestamp
-        .Range("H" & nextRow).NumberFormat = "yyyy-mm-dd hh:mm:ss"
-        
-        ' AutoFit and format
-        .Range("A1:H" & nextRow).Borders.LineStyle = xlContinuous
-        .UsedRange.EntireColumn.AutoFit
+        .Cells(nextRow, 1).Value = entryId
+        .Cells(nextRow, 2).Value = wsInput.Range("B2").Value
+        .Cells(nextRow, 3).Value = wsInput.Range("B3").Value
+        .Cells(nextRow, 4).Value = wsInput.Range("B4").Value
+        .Cells(nextRow, 5).Value = wsInput.Range("B5").Value
+        .Cells(nextRow, 6).Value = wsInput.Range("B6").Value
+        .Cells(nextRow, 7).Value = wsInput.Range("B7").Value
+        .Cells(nextRow, 8).Value = Now
+        .Cells(nextRow, 8).NumberFormat = "yyyy-mm-dd hh:mm:ss"
+    End With
+End Sub
+
+Private Sub SetupHeaders(ws As Worksheet)
+    With ws
+        .Range("A1:H1") = Array("EntryID", "Name", "Email", "Phone", "Company", "Title", "Department", "Timestamp")
+        .Range("A1:H1").Font.Bold = True
+        .Range("A1:H1").Interior.Color = RGB(240, 240, 240)
     End With
 End Sub
 
 Private Function GetNextEntryId(wsData As Worksheet) As Long
     Dim lastRow As Long
     lastRow = wsData.Range("A" & wsData.Rows.Count).End(xlUp).Row
-    
-    If lastRow = 1 Then
-        GetNextEntryId = 1
-    Else
-        GetNextEntryId = wsData.Cells(lastRow, 1).Value + 1
-    End If
+    GetNextEntryId = IIf(lastRow = 1, 1, wsData.Cells(lastRow, 1).Value + 1)
 End Function
 
 Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
     On Error GoTo EmailError
     
-    Dim outlookApp As Object, outlookMail As Object
-    Set outlookApp = CreateObject("Outlook.Application")
-    Set outlookMail = outlookApp.CreateItem(0)
+    Dim outApp As Object, outMail As Object
+    Set outApp = CreateObject("Outlook.Application")
+    Set outMail = outApp.CreateItem(0)
     
-    With outlookMail
+    With outMail
         .To = wsInput.Range("D2").Value
-        .Subject = "Form Submission - Entry #" & entryId
+        .Subject = "Form Submission #" & entryId
         .HTMLBody = BuildEmailHTML(wsInput, entryId)
         .Display
-        
-        If MsgBox("Send this email now?", vbQuestion + vbYesNo) = vbYes Then
-            .Send
-            SendEmail = True
-        End If
+        SendEmail = (MsgBox("Send this email?", vbQuestion + vbYesNo) = vbYes)
+        If SendEmail Then .Send
     End With
     
 EmailCleanup:
-    Set outlookMail = Nothing
-    Set outlookApp = Nothing
+    Set outMail = Nothing: Set outApp = Nothing
     Exit Function
     
 EmailError:
@@ -141,36 +104,23 @@ EmailError:
 End Function
 
 Private Function BuildEmailHTML(ws As Worksheet, entryId As Long) As String
-    Dim html As String
-    html = "<html><head><style>" & _
-           "body{font:13px Arial;color:#333;line-height:1.4}" & _
-           ".wrapper{max-width:500px;margin:auto;border:1px solid #ddd;border-radius:4px}" & _
-           ".header{background:#f8f9fa;padding:15px;border-bottom:1px solid #ddd}" & _
-           ".title{font-size:16px;font-weight:bold;color:#2b579a;margin-bottom:5px}" & _
-           ".content{padding:15px}" & _
-           "table{width:100%;border-collapse:collapse;margin:10px 0}" & _
-           "th{background:#f8f9fa;padding:8px;text-align:left;font-weight:bold;border:1px solid #ddd}" & _
-           "td{padding:8px;border:1px solid #ddd}" & _
-           ".footer{background:#f8f9fa;padding:12px;text-align:center;color:#666;font-size:12px;border-top:1px solid #ddd}" & _
-           "</style></head><body>" & _
-           "<div class='wrapper'>" & _
-           "<div class='header'>" & _
-           "<div class='title'>Form Submission</div>" & _
-           "<div>Entry #" & entryId & "</div>" & _
-           "</div>" & _
-           "<div class='content'>" & _
-           "<table>" & _
-           "<tr><th>Name</th><td>" & ws.Range("B2").Value & "</td></tr>" & _
+    Dim style As String
+    style = "body{font:13px Arial;color:#333}div{margin:8px 0}.card{max-width:500px;margin:auto;border:1px solid #ddd;border-radius:3px}" & _
+            ".head{background:#f8f9fa;padding:12px;border-bottom:1px solid #ddd}.title{font-size:16px;font-weight:bold;color:#2b579a}" & _
+            "table{width:100%;border-collapse:collapse;margin:12px}th{background:#f8f9fa;text-align:left}td,th{padding:8px;border:1px solid #ddd}" & _
+            ".foot{background:#f8f9fa;padding:8px;text-align:center;color:#666;font-size:11px;border-top:1px solid #ddd}"
+            
+    Dim data As String
+    data = "<div class='card'><div class='head'><div class='title'>Form Submission</div>Entry #" & entryId & "</div>" & _
+           "<table><tr><th>Name</th><td>" & ws.Range("B2").Value & "</td></tr>" & _
            "<tr><th>Email</th><td>" & ws.Range("B3").Value & "</td></tr>" & _
            "<tr><th>Phone</th><td>" & ws.Range("B4").Value & "</td></tr>" & _
            "<tr><th>Company</th><td>" & ws.Range("B5").Value & "</td></tr>" & _
            "<tr><th>Title</th><td>" & ws.Range("B6").Value & "</td></tr>" & _
-           "<tr><th>Department</th><td>" & ws.Range("B7").Value & "</td></tr>" & _
-           "</table></div>" & _
-           "<div class='footer'>Automated message - Do not reply</div>" & _
-           "</div></body></html>"
+           "<tr><th>Department</th><td>" & ws.Range("B7").Value & "</td></tr></table>" & _
+           "<div class='foot'>Automated message - Do not reply</div></div>"
            
-    BuildEmailHTML = html
+    BuildEmailHTML = "<html><head><style>" & style & "</style></head><body>" & data & "</body></html>"
 End Function
 
 Private Sub ClearForm(ws As Worksheet)
