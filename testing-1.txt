@@ -12,39 +12,38 @@ Private Const DATA_SHEET_NAME As String = "IntakeData"
 Public Sub SubmitIntake()
     On Error GoTo ErrHandler
     
-    ' Disable screen updating and automatic calculation for performance
+    ' Disable screen updates & auto-calculation for performance
     Application.ScreenUpdating = False
     Application.Calculation = xlCalculationManual
     
     Dim wsInput As Worksheet, wsData As Worksheet
-    Set wsInput = ThisWorkbook.Worksheets(INPUT_SHEET_NAME)
-    Set wsData = ThisWorkbook.Worksheets(DATA_SHEET_NAME)
+    Set wsInput = ThisWorkbook.Sheets(INPUT_SHEET_NAME)
+    Set wsData = ThisWorkbook.Sheets(DATA_SHEET_NAME)
     
-    ' Validate that all required fields (B2:B7) are filled
+    ' Validate required fields (B2:B7)
     If Not ValidateForm(wsInput) Then
-        MsgBox "Please fill in all required fields.", vbExclamation
+        MsgBox "Please fill in all required fields.", vbExclamation, "Missing Information"
         wsInput.Activate
         GoTo CleanExit
     End If
     
-    ' Get the next available Entry ID from the data sheet
+    ' Determine next available Entry ID
     Dim entryId As Long
     entryId = GetNextEntryId(wsData)
     
-    ' Prepare and display the email for review.
-    ' If the email is sent, then accumulate the data and clear the form.
+    ' Display the email and ask for confirmation before sending
     If SendEmail(wsInput, entryId) Then
-        ' Save the data in IntakeData
+        ' Save to IntakeData
         SaveFormData wsInput, wsData, entryId
-        ' Clear the form in IntakeForm
+        ' Clear IntakeForm fields
         ClearForm wsInput
         
-        ' Optionally, format the data sheet if it has more than just headers
+        ' Format the data sheet if necessary
         If wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row > 1 Then
             FormatDataSheet wsData
         End If
         
-        MsgBox "Entry #" & entryId & " has been processed successfully.", vbInformation
+        MsgBox "Entry #" & entryId & " has been processed successfully!", vbInformation, "Submission Successful"
         wsInput.Activate
         wsInput.Range("B2").Select
     End If
@@ -56,13 +55,13 @@ CleanExit:
     Exit Sub
 
 ErrHandler:
-    MsgBox "Error: " & Err.Description & " (Error Number: " & Err.Number & ")", vbCritical
+    MsgBox "Error: " & Err.Description & " (Error No: " & Err.Number & ")", vbCritical, "Unexpected Error"
     Resume CleanExit
 End Sub
 
 '==============================================
 ' Function: ValidateForm
-' Checks that cells B2:B7 in the input sheet are not empty.
+' Checks that required fields in IntakeForm are not empty.
 '==============================================
 Private Function ValidateForm(ws As Worksheet) As Boolean
     Dim cell As Range
@@ -78,25 +77,18 @@ End Function
 
 '==============================================
 ' Function: GetNextEntryId
-' Returns the next Entry ID based on the last value in column A
-' of the data sheet. If no data exists, returns 1.
+' Returns the next available Entry ID from IntakeData.
 '==============================================
 Private Function GetNextEntryId(wsData As Worksheet) As Long
     Dim lastRow As Long
     lastRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row
-    If lastRow < 2 Then
-        GetNextEntryId = 1
-    Else
-        GetNextEntryId = wsData.Cells(lastRow, "A").Value + 1
-    End If
+    GetNextEntryId = IIf(lastRow < 2, 1, wsData.Cells(lastRow, "A").Value + 1)
 End Function
 
 '==============================================
 ' Function: SendEmail
-' Prepares and displays an Outlook email for review.
-' The recipient is taken from cell B3 of the input sheet.
-' Returns True if the email is successfully sent.
-'-------------------------------------------------------------------
+' Prepares an email and asks the user for confirmation before sending.
+'==============================================
 Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
     On Error GoTo EmailError
 
@@ -105,19 +97,19 @@ Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
     Set outMail = outApp.CreateItem(0)
     
     With outMail
-        .To = wsInput.Range("B3").Value    ' Recipient email from the form
+        .To = wsInput.Range("B3").Value   ' Recipient email
         .Subject = "Form Submission #" & entryId
         .HTMLBody = BuildEmailHTML(wsInput, entryId)
-        .Display   ' Show the email for review
+        .Display  ' Show email for review
         
-        ' Prompt the user to confirm sending the email
-        If MsgBox("Send this email?", vbQuestion + vbYesNo, "Send Email Confirmation") = vbYes Then
+        ' Confirm before sending
+        If MsgBox("Send this email?", vbQuestion + vbYesNo, "Send Confirmation") = vbYes Then
             On Error Resume Next
             .Send
             If Err.Number = 0 Then
                 SendEmail = True
             Else
-                MsgBox "Email send failed: " & Err.Description & ". Please try again or send manually.", vbInformation
+                MsgBox "Email send failed: " & Err.Description, vbExclamation, "Email Error"
                 SendEmail = False
             End If
             On Error GoTo 0
@@ -132,24 +124,21 @@ EmailCleanup:
     Exit Function
 
 EmailError:
-    MsgBox "Email error: " & Err.Description & " (Error Number: " & Err.Number & ")", vbExclamation
+    MsgBox "Email error: " & Err.Description & " (Error No: " & Err.Number & ")", vbExclamation, "Email Issue"
     Resume EmailCleanup
 End Function
 
 '==============================================
 ' Function: BuildEmailHTML
-' Returns the HTML string for the email body.
-' The HTML includes a stylish header and a table displaying the form data,
-' along with the Entry ID.
+' Generates a well-formatted HTML email body.
 '==============================================
 Private Function BuildEmailHTML(ws As Worksheet, entryId As Long) As String
     Dim style As String
     style = "body{font:16px Arial;color:#333;background-color:#f4f4f4;}" & _
-            "table{width:90%;max-width:600px;margin:20px auto;border-collapse:collapse;box-shadow:0 4px 8px rgba(0,0,0,0.1);}" & _
-            "th{background-color:#007bff;color:white;text-align:left;padding:12px;border-bottom:2px solid #ddd;font-weight:500;}" & _
-            "td{background-color:white;padding:12px;border-bottom:1px solid #eee;}" & _
-            "tr:hover{background-color:#f0f0f0;}" & _
-            "h2{color:#333;text-align:center;margin-bottom:20px;}" & _
+            "table{width:100%;border-collapse:collapse;margin:20px 0;}" & _
+            "th,td{padding:10px;border:1px solid #ddd;text-align:left;}" & _
+            "th{background-color:#007bff;color:white;font-weight:bold;}" & _
+            "tr:nth-child(even){background-color:#f9f9f9;}" & _
             ".footer{text-align:center;color:#777;font-size:14px;margin-top:20px;}"
     
     Dim htmlBody As String
@@ -163,7 +152,7 @@ Private Function BuildEmailHTML(ws As Worksheet, entryId As Long) As String
                "<tr><th>Title</th><td>" & ws.Range("B6").Value & "</td></tr>" & _
                "<tr><th>Department</th><td>" & ws.Range("B7").Value & "</td></tr>" & _
                "</table>" & _
-               "<div class='footer'>Automated message - Do not reply</div>" & _
+               "<div class='footer'>This is an automated message. Please do not reply.</div>" & _
                "</body></html>"
     
     BuildEmailHTML = htmlBody
@@ -171,86 +160,32 @@ End Function
 
 '==============================================
 ' Sub: SaveFormData
-' Saves the form data along with the Entry ID and a timestamp in the data sheet.
-' If the data sheet is empty, it writes headers first.
+' Saves the form data into IntakeData after email is sent.
 '==============================================
 Private Sub SaveFormData(wsInput As Worksheet, wsData As Worksheet, entryId As Long)
-    ' Write headers if the data sheet is empty
+    ' Ensure headers are present
     If wsData.Cells(1, 1).Value = "" Then
-        With wsData.Range("A1:H1")
-            .Value = Array("Entry ID", "Name", "Email", "Phone", "Company", "Title", "Department", "Timestamp")
-            .Font.Bold = True
-            .Interior.Color = RGB(240, 240, 240)
-        End With
+        wsData.Range("A1:H1").Value = Array("Entry ID", "Name", "Email", "Phone", "Company", "Title", "Department", "Timestamp")
+        wsData.Range("A1:H1").Font.Bold = True
+        wsData.Range("A1:H1").Interior.Color = RGB(240, 240, 240)
     End If
     
+    ' Find next available row
     Dim nextRow As Long
     nextRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row + 1
     
-    With wsData
-        .Cells(nextRow, 1).Value = entryId
-        .Cells(nextRow, 2).Value = wsInput.Range("B2").Value
-        .Cells(nextRow, 3).Value = wsInput.Range("B3").Value
-        .Cells(nextRow, 4).Value = wsInput.Range("B4").Value
-        .Cells(nextRow, 5).Value = wsInput.Range("B5").Value
-        .Cells(nextRow, 6).Value = wsInput.Range("B6").Value
-        .Cells(nextRow, 7).Value = wsInput.Range("B7").Value
-        .Cells(nextRow, 8).Value = Now
-        .Cells(nextRow, 8).NumberFormat = "yyyy-mm-dd hh:mm:ss"
-    End With
-End Sub
-
-'==============================================
-' Sub: FormatDataSheet
-' Applies formatting (fonts, borders, alternating row colors, etc.) to the data sheet.
-'==============================================
-Private Sub FormatDataSheet(wsData As Worksheet)
-    With wsData
-        Dim usedRng As Range
-        Set usedRng = .UsedRange
-        
-        usedRng.EntireColumn.AutoFit
-        
-        With usedRng.Font
-            .Name = "Calibri"
-            .Size = 11
-        End With
-        
-        With .Range("A1:H1")
-            .Font.Bold = True
-            .Interior.Color = RGB(240, 240, 240)
-            .Borders(xlBottom).LineStyle = xlContinuous
-            .Borders(xlBottom).Weight = xlMedium
-            .Borders(xlBottom).Color = RGB(180, 180, 180)
-        End With
-        
-        Dim i As Long
-        For i = 2 To usedRng.Rows.Count
-            If i Mod 2 = 0 Then
-                .Range("A" & i & ":H" & i).Interior.Color = RGB(252, 252, 252)
-            End If
-        Next i
-        
-        .Range("A2").Select
-        ActiveWindow.FreezePanes = True
-        
-        .Columns("A").ColumnWidth = 8
-        .Columns("H").ColumnWidth = 18
-        
-        .Range("A2:A" & usedRng.Rows.Count).HorizontalAlignment = xlCenter
-        .Range("H2:H" & usedRng.Rows.Count).NumberFormat = "yyyy-mm-dd hh:mm:ss"
-        
-        ActiveWindow.DisplayGridlines = False ' Optional: Remove gridlines
-        .Range("A1").Select ' Select the first cell
-    End With
+    ' Store values
+    wsData.Cells(nextRow, 1).Value = entryId
+    wsData.Cells(nextRow, 2).Resize(1, 6).Value = wsInput.Range("B2:B7").Value
+    wsData.Cells(nextRow, 8).Value = Now
+    wsData.Cells(nextRow, 8).NumberFormat = "yyyy-mm-dd hh:mm:ss"
 End Sub
 
 '==============================================
 ' Sub: ClearForm
-' Clears the form data (cells B2:B7) on the input sheet.
+' Clears the IntakeForm fields after data is saved.
 '==============================================
 Private Sub ClearForm(ws As Worksheet)
     ws.Range("B2:B7").ClearContents
     ws.Range("B2").Select
-    ws.Activate
 End Sub
