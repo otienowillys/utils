@@ -1,0 +1,163 @@
+
+
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+ output: "standalone",
+
+  /* config options here */
+};
+
+export default nextConfig;
+
+
+Copy the entire `.next/standalone` directory to a new location (e.g., `C:\Users\YourUsername\Desktop\standalone-test`)
+Copy your `public` directory (if it exists) into this new `standalone-test` directory
+Copy the `.next/static` directory into `standalone-test/.next/static`
+
+deployment_folder/
+├── public/
+└── standalone/
+    ├── .next/
+    │   └── static/  
+	├── data
+	├── node_modules
+	├── package.json
+    └── server.js
+	
+	
+	
+node server.js
+	
+	
+
+I understand that you're working with a server that's not connected to the internet and you can't install iisnode or use npm to install pm2. In this case, we'll need to use a different approach to run your Next.js application on Windows without these tools. Here's a method using a simple batch script and the built-in Windows Task Scheduler:
+
+1. Create a batch script to start your Node.js application:
+Create a new file named `start-nextjs.bat` in your application's root directory (where `server.js` is located) with the following content:
+
+@echo off
+cd /d %~dp0
+node server.js
+
+This script changes to the directory where it's located and then starts your Node.js application.
+
+
+Configure IIS as a reverse proxy:
+
+Since we can't use iisnode, we'll set up IIS to act as a reverse proxy to your Node.js application.
+
+a. Install Application Request Routing (ARR) for IIS:
+You'll need to download this manually and transfer it to your server if it's not already installed. You can find it on the Microsoft website.
+
+b. Configure URL Rewrite in IIS:
+
+- Open IIS Manager
+- Select your website
+- Double-click on "URL Rewrite"
+- Add a new rule with these settings:
+
+- Name: "Reverse Proxy to Node.js"
+- Pattern: `(.*)`
+- Action Type: "Rewrite"
+- Rewrite URL: `http://localhost:3000/{R:1}`
+
+
+
+
+
+c. Create a `web.config` file in your application's root directory:
+
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <system.webServer>
+        <rewrite>
+            <rules>
+                <rule name="Reverse Proxy to Node.js" stopProcessing="true">
+                    <match url="(.*)" />
+                    <conditions>
+                        <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="true" />
+                    </conditions>
+                    <action type="Rewrite" url="http://localhost:3000/{R:1}" />
+                </rule>
+            </rules>
+        </rewrite>
+    </system.webServer>
+</configuration>
+
+
+3. Use Windows Task Scheduler to keep your application running:
+
+a. Open Task Scheduler (search for it in the Start menu)
+
+b. Create a new task with these settings:
+
+1. Name: "Start Next.js Application"
+2. Run whether user is logged on or not
+3. Do not store password
+4. Run with highest privileges
+
+
+c. Triggers:
+
+1. At system startup
+
+
+d. Actions:
+
+1. Start a program
+2. Program/script: `C:\Windows\System32\cmd.exe`
+3. Add arguments: `/c "C:\path\to\your\start-nextjs.bat"`
+4. Start in: `C:\path\to\your\application\directory`
+
+
+e. Settings:
+
+1. Allow task to be run on demand
+2. Restart every: 1 minute
+3. Attempt to restart up to: 3 times
+
+
+
+4. Start your application:
+
+1. Right-click on the task you just created in Task Scheduler and select "Run"
+2. This will start your Node.js application
+
+
+
+5. Configure a custom URL (if needed):
+
+a. Edit the hosts file:
+
+1. Open Notepad as Administrator
+2. Open the file: `C:\Windows\System32\drivers\etc\hosts`
+3. Add a new line like this: `127.0.0.1 mycustomurl.local`
+4. Save the file
+
+
+b. Update IIS bindings:
+
+1. In IIS Manager, select your website
+2. Click "Bindings" in the right panel
+3. Add a new binding for `mycustomurl.local`
+
+
+
+Remember to replace `C:\path\to\your\application\directory` with the actual path to your Next.js application directory.
+
+This setup will:
+
+1. Use a batch script to start your Node.js application
+2. Use Windows Task Scheduler to keep your application running and restart it if it crashes
+3. Use IIS as a reverse proxy to forward requests to your Node.js application
+4. Allow you to access your application via a custom URL
+
+
+Note that this method doesn't provide the same level of integration and management that iisnode would, but it should work for running your Next.js application on a Windows server without internet access.
+
+If you need to stop or restart your application, you can do so through the Task Scheduler.
+
+
+
+
