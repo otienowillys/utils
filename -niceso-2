@@ -21,28 +21,28 @@ Public Sub SubmitIntake()
     ' Get next entry ID
     entryId = GetNextEntryId(wsData)
     
-    ' Send email and get confirmation
+    ' Try to send email
     emailSent = SendEmail(wsInput, entryId)
     
+    ' Save form data regardless of email status
+    SaveFormData wsInput, wsData, entryId
+    
+    ' Clear form
+    ClearForm wsInput
+    
+    ' Format data sheet
+    FormatDataSheet wsData
+    
     If emailSent Then
-        ' Save form data
-        SaveFormData wsInput, wsData, entryId
-        
-        ' Clear form
-        ClearForm wsInput
-        
-        ' Format data sheet
-        FormatDataSheet wsData
-        
-        MsgBox "Form submitted successfully!", vbInformation
+        MsgBox "Form submitted successfully and email sent!", vbInformation
     Else
-        MsgBox "Form submission cancelled.", vbInformation
+        MsgBox "Form submitted successfully, but email could not be sent. The data has been saved.", vbInformation
     End If
     
     Exit Sub
     
 ErrorHandler:
-    MsgBox "An error occurred: " & Err.Description, vbCritical
+    MsgBox "An error occurred in SubmitIntake: " & Err.Description, vbCritical
 End Sub
 
 ' Function to validate form fields
@@ -93,14 +93,14 @@ End Function
 
 ' Function to send email
 Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
-    On Error GoTo OutlookErrorHandler
+    On Error GoTo ErrorHandler
     
     Dim outlookApp As Object
     Dim mailItem As Object
     Dim htmlBody As String
     Dim userResponse As VbMsgBoxResult
     
-    ' Try to use Outlook first
+    ' Try to use Outlook
     Set outlookApp = GetOutlookApp()
     
     If Not outlookApp Is Nothing Then
@@ -114,11 +114,10 @@ Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
             htmlBody = BuildEmailHTML(wsInput, entryId)
             .HTMLBody = htmlBody
             
-            ' Display the email for preview
-            .Display
-            
             ' Ask user for confirmation
-            userResponse = MsgBox("Do you want to send this email?", vbYesNo + vbQuestion)
+            userResponse = MsgBox("Do you want to send this email?" & vbNewLine & _
+                                  "To: " & .To & vbNewLine & _
+                                  "Subject: " & .Subject, vbYesNo + vbQuestion)
             
             If userResponse = vbYes Then
                 .Send
@@ -131,21 +130,25 @@ Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
         Set mailItem = Nothing
     Else
         ' Fallback to CDO if Outlook is not available
-        GoTo UseCDO
+        SendEmail = SendEmailCDO(wsInput, entryId)
     End If
     
     Exit Function
     
-OutlookErrorHandler:
-    ' If there's an error with Outlook, try using CDO
-    Debug.Print "Outlook error: " & Err.Description
-    Resume UseCDO
+ErrorHandler:
+    Debug.Print "Error in SendEmail: " & Err.Description
+    ' Fallback to CDO if there's an error with Outlook
+    SendEmail = SendEmailCDO(wsInput, entryId)
+End Function
 
-UseCDO:
-    On Error GoTo CDOErrorHandler
+' Function to send email using CDO
+Private Function SendEmailCDO(wsInput As Worksheet, entryId As Long) As Boolean
+    On Error GoTo ErrorHandler
     
     Dim cdoMessage As Object
     Dim cdoConfig As Object
+    Dim htmlBody As String
+    Dim userResponse As VbMsgBoxResult
     
     Set cdoMessage = CreateObject("CDO.Message")
     Set cdoConfig = CreateObject("CDO.Configuration")
@@ -155,18 +158,21 @@ UseCDO:
         .Item("http://schemas.microsoft.com/cdo/configuration/sendusing") = 2
         .Item("http://schemas.microsoft.com/cdo/configuration/smtpserver") = "smtp.example.com"
         .Item("http://schemas.microsoft.com/cdo/configuration/smtpserverport") = 25
+        ' Uncomment and set the following if your SMTP server requires authentication
+        '.Item("http://schemas.microsoft.com/cdo/configuration/smtpauthenticate") = 1
+        '.Item("http://schemas.microsoft.com/cdo/configuration/sendusername") = "your_username"
+        '.Item("http://schemas.microsoft.com/cdo/configuration/sendpassword") = "your_password"
         .Update
     End With
+    
+    htmlBody = BuildEmailHTML(wsInput, entryId)
     
     With cdoMessage
         Set .Configuration = cdoConfig
         .To = "recipient@example.com"
         .From = "sender@example.com"
         .Subject = "New Intake Form Submission - Entry ID: " & entryId
-        .HTMLBody = BuildEmailHTML(wsInput, entryId)
-        
-        ' Display the email content for preview (since we can't use .Display with CDO)
-        Debug.Print .HTMLBody
+        .HTMLBody = htmlBody
         
         ' Ask user for confirmation
         userResponse = MsgBox("Do you want to send this email?" & vbNewLine & _
@@ -175,9 +181,9 @@ UseCDO:
         
         If userResponse = vbYes Then
             .Send
-            SendEmail = True
+            SendEmailCDO = True
         Else
-            SendEmail = False
+            SendEmailCDO = False
         End If
     End With
     
@@ -186,9 +192,10 @@ UseCDO:
     
     Exit Function
     
-CDOErrorHandler:
-    MsgBox "Error sending email: " & Err.Description, vbCritical
-    SendEmail = False
+ErrorHandler:
+    MsgBox "Error in SendEmailCDO: " & Err.Description & vbNewLine & _
+           "Please check your SMTP server settings and network connection.", vbCritical
+    SendEmailCDO = False
 End Function
 
 ' Function to get or create Outlook application object
