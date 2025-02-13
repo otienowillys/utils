@@ -1,0 +1,269 @@
+Option Explicit
+
+' Main function to handle form submission
+Public Sub SubmitIntake()
+    On Error GoTo ErrorHandler
+    
+    Dim wsInput As Worksheet
+    Dim wsData As Worksheet
+    Dim entryId As Long
+    Dim emailSent As Boolean
+    
+    Set wsInput = ThisWorkbook.Worksheets("IntakeForm")
+    Set wsData = ThisWorkbook.Worksheets("IntakeData")
+    
+    ' Validate form
+    If Not ValidateForm(wsInput) Then
+        MsgBox "Please fill in all required fields.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Get next entry ID
+    entryId = GetNextEntryId(wsData)
+    
+    ' Send email and get confirmation
+    emailSent = SendEmail(wsInput, entryId)
+    
+    If emailSent Then
+        ' Save form data
+        SaveFormData wsInput, wsData, entryId
+        
+        ' Clear form
+        ClearForm wsInput
+        
+        ' Format data sheet
+        FormatDataSheet wsData
+        
+        MsgBox "Form submitted successfully!", vbInformation
+    Else
+        MsgBox "Form submission cancelled.", vbInformation
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "An error occurred: " & Err.Description, vbCritical
+End Sub
+
+' Function to validate form fields
+Private Function ValidateForm(ws As Worksheet) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim cell As Range
+    Dim requiredRange As Range
+    
+    ' Assuming required fields are in column A, rows 2 to 10
+    Set requiredRange = ws.Range("A2:A10")
+    
+    For Each cell In requiredRange
+        If IsEmpty(cell.Offset(0, 1)) Then
+            ValidateForm = False
+            Exit Function
+        End If
+    Next cell
+    
+    ValidateForm = True
+    Exit Function
+    
+ErrorHandler:
+    MsgBox "Error in ValidateForm: " & Err.Description, vbCritical
+    ValidateForm = False
+End Function
+
+' Function to get the next entry ID
+Private Function GetNextEntryId(wsData As Worksheet) As Long
+    On Error GoTo ErrorHandler
+    
+    Dim lastRow As Long
+    
+    lastRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row
+    
+    If lastRow = 1 Then
+        GetNextEntryId = 1
+    Else
+        GetNextEntryId = wsData.Cells(lastRow, "A").Value + 1
+    End If
+    
+    Exit Function
+    
+ErrorHandler:
+    MsgBox "Error in GetNextEntryId: " & Err.Description, vbCritical
+    GetNextEntryId = 0
+End Function
+
+' Function to send email
+Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim outlookApp As Object
+    Dim mailItem As Object
+    Dim htmlBody As String
+    Dim userResponse As VbMsgBoxResult
+    
+    ' Create Outlook application object
+    Set outlookApp = CreateObject("Outlook.Application")
+    Set mailItem = outlookApp.CreateItem(0)  ' 0 = olMailItem
+    
+    With mailItem
+        .To = "recipient@example.com"
+        .Subject = "New Intake Form Submission - Entry ID: " & entryId
+        
+        ' Build HTML body
+        htmlBody = BuildEmailHTML(wsInput, entryId)
+        .HTMLBody = htmlBody
+        
+        ' Display the email for preview
+        .Display
+        
+        ' Ask user for confirmation
+        userResponse = MsgBox("Do you want to send this email?", vbYesNo + vbQuestion)
+        
+        If userResponse = vbYes Then
+            .Send
+            SendEmail = True
+        Else
+            SendEmail = False
+        End If
+    End With
+    
+    Set mailItem = Nothing
+    Set outlookApp = Nothing
+    
+    Exit Function
+    
+ErrorHandler:
+    MsgBox "Error in SendEmail: " & Err.Description, vbCritical
+    SendEmail = False
+End Function
+
+' Function to build HTML email content
+Private Function BuildEmailHTML(ws As Worksheet, entryId As Long) As String
+    On Error GoTo ErrorHandler
+    
+    Dim html As String
+    Dim i As Integer
+    Dim fieldName As String
+    Dim fieldValue As String
+    
+    html = "<html><head><style>"
+    html = html & "body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }"
+    html = html & "h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }"
+    html = html & "table { width: 100%; border-collapse: collapse; margin-top: 20px; }"
+    html = html & "th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }"
+    html = html & "th { background-color: #3498db; color: white; text-transform: uppercase; font-size: 14px; }"
+    html = html & "tr:nth-child(even) { background-color: #f8f8f8; }"
+    html = html & "tr:hover { background-color: #f1f1f1; }"
+    html = html & ".highlight { font-weight: bold; color: #2980b9; }"
+    html = html & "</style></head><body>"
+    
+    html = html & "<h1>New Intake Form Submission</h1>"
+    html = html & "<p>A new intake form has been submitted with the following details:</p>"
+    html = html & "<table>"
+    html = html & "<tr><th>Field</th><th>Value</th></tr>"
+    
+    ' Add Entry ID
+    html = html & "<tr><td><strong>Entry ID</strong></td><td class='highlight'>" & entryId & "</td></tr>"
+    
+    ' Loop through form fields (assuming they're in columns A and B, starting from row 2)
+    For i = 2 To 10  ' Adjust the range as needed
+        If Not IsEmpty(ws.Cells(i, 1)) Then
+            fieldName = ws.Cells(i, 1).Value
+            fieldValue = ws.Cells(i, 2).Value
+            
+            ' Escape HTML special characters
+            fieldName = Replace(Replace(Replace(fieldName, "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
+            fieldValue = Replace(Replace(Replace(fieldValue, "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
+            
+            html = html & "<tr>"
+            html = html & "<td><strong>" & fieldName & "</strong></td>"
+            html = html & "<td>" & fieldValue & "</td>"
+            html = html & "</tr>"
+        End If
+    Next i
+    
+    html = html & "</table>"
+    html = html & "<p>Thank you for using our intake form system.</p>"
+    html = html & "</body></html>"
+    
+    BuildEmailHTML = html
+    
+    Exit Function
+    
+ErrorHandler:
+    MsgBox "Error in BuildEmailHTML: " & Err.Description, vbCritical
+    BuildEmailHTML = ""
+End Function
+
+' Subroutine to save form data
+Private Sub SaveFormData(wsInput As Worksheet, wsData As Worksheet, entryId As Long)
+    On Error GoTo ErrorHandler
+    
+    Dim lastRow As Long
+    Dim i As Integer
+    
+    lastRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row + 1
+    
+    ' Save Entry ID
+    wsData.Cells(lastRow, "A").Value = entryId
+    
+    ' Save form data (assuming form fields are in column B of wsInput)
+    For i = 2 To 10  ' Adjust the range as needed
+        wsData.Cells(lastRow, i).Value = wsInput.Cells(i, 2).Value
+    Next i
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in SaveFormData: " & Err.Description, vbCritical
+End Sub
+
+' Subroutine to clear form
+Private Sub ClearForm(ws As Worksheet)
+    On Error GoTo ErrorHandler
+    
+    Dim clearRange As Range
+    
+    ' Assuming form fields are in column B, rows 2 to 10
+    Set clearRange = ws.Range("B2:B10")
+    clearRange.ClearContents
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in ClearForm: " & Err.Description, vbCritical
+End Sub
+
+' Subroutine to format data sheet
+Private Sub FormatDataSheet(wsData As Worksheet)
+    On Error GoTo ErrorHandler
+    
+    Dim dataRange As Range
+    Dim lastRow As Long
+    Dim lastCol As Long
+    
+    ' Find the last row and column with data
+    lastRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row
+    lastCol = wsData.Cells(1, wsData.Columns.Count).End(xlToLeft).Column
+    
+    ' Set the data range
+    Set dataRange = wsData.Range(wsData.Cells(1, 1), wsData.Cells(lastRow, lastCol))
+    
+    With dataRange
+        ' Add borders
+        .Borders.LineStyle = xlContinuous
+        .Borders.Weight = xlThin
+        
+        ' Format header row
+        .Rows(1).Font.Bold = True
+        .Rows(1).Interior.Color = RGB(200, 200, 200)
+        
+        ' Autofit columns
+        .Columns.AutoFit
+    End With
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in FormatDataSheet: " & Err.Description, vbCritical
+End Sub
+
