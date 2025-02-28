@@ -1,0 +1,92 @@
+Option Explicit
+
+' Function to add review buttons
+Private Sub AddReviewButtons(ws As Worksheet, rowNum As Long)
+    On Error GoTo ErrorHandler
+    
+    Dim btnApprove As Button
+    Dim btnReject As Button
+    Dim lastCol As Long
+    Dim buttonLeft As Double
+    
+    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column - 1 ' -1 for status column
+    
+    ' Calculate button positions
+    buttonLeft = ws.Cells(rowNum, lastCol).Left
+    
+    ' Add Approve button
+    Set btnApprove = ws.Buttons.Add(buttonLeft, _
+                                   ws.Cells(rowNum, lastCol).Top, _
+                                   BUTTON_WIDTH, BUTTON_HEIGHT)
+    With btnApprove
+        .Name = "Approve_" & rowNum
+        .Caption = "✓ Approve"
+        .Font.Size = 10
+        .Font.Bold = True
+        .OnAction = "'ApproveEntry " & rowNum & "'"
+    End With
+    
+    ' Add Reject button
+    Set btnReject = ws.Buttons.Add(buttonLeft + BUTTON_WIDTH + BUTTON_SPACING, _
+                                  ws.Cells(rowNum, lastCol).Top, _
+                                  BUTTON_WIDTH, BUTTON_HEIGHT)
+    With btnReject
+        .Name = "Reject_" & rowNum
+        .Caption = "✗ Reject"
+        .Font.Size = 10
+        .Font.Bold = True
+        .OnAction = "'RejectEntry " & rowNum & "'"
+    End With
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error adding review buttons: " & Err.Description, vbCritical
+End Sub
+
+' Function to approve entry
+Public Sub ApproveEntry(rowNum As Long)
+    On Error GoTo ErrorHandler
+    
+    If MsgBox("Are you sure you want to approve this entry?", _
+              vbQuestion + vbYesNo) = vbYes Then
+        UpdateEntryStatus rowNum, STATUS_APPROVED
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in ApproveEntry: " & Err.Description, vbCritical
+End Sub
+
+' Function to reject entry
+Public Sub RejectEntry(rowNum As Long)
+    On Error GoTo ErrorHandler
+    
+    If MsgBox("Are you sure you want to reject this entry?", _
+              vbQuestion + vbYesNo) = vbYes Then
+        UpdateEntryStatus rowNum, STATUS_REJECTED
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in RejectEntry: " & Err.Description, vbCritical
+End Sub
+
+' Function to remove review buttons
+Private Sub RemoveReviewButtons(ws As Worksheet, rowNum As Long)
+    On Error Resume Next
+    
+    Dim btn As Button
+    
+    ' Remove all buttons in the row
+    For Each btn In ws.Buttons
+        If btn.TopLeftCell.Row = rowNum Then
+            btn.Delete
+        End If
+    Next btn
+    
+    On Error GoTo 0
+End Sub
+
