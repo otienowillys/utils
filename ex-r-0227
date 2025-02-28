@@ -1,0 +1,352 @@
+Option Explicit
+
+' Constants for status values
+Private Const STATUS_PENDING As String = "Pending"
+Private Const STATUS_APPROVED As String = "Approved"
+Private Const STATUS_REJECTED As String = "Rejected"
+Private Const REVIEW_SHEET_NAME As String = "ReviewEntries"
+
+' Function to set up the review system
+Public Sub SetupReviewSystem()
+    On Error GoTo ErrorHandler
+    
+    ' Add status column to IntakeData if it doesn't exist
+    Dim wsData As Worksheet
+    Set wsData = ThisWorkbook.Worksheets("IntakeData")
+    
+    ' Check if Status column exists (assumed to be last column)
+    Dim lastCol As Long
+    lastCol = wsData.Cells(1, wsData.Columns.Count).End(xlToLeft).Column
+    
+    If wsData.Cells(1, lastCol).Value <> "Status" Then
+        wsData.Cells(1, lastCol + 1).Value = "Status"
+        ' Add status to existing entries
+        Dim lastRow As Long
+        lastRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row
+        If lastRow > 1 Then
+            Range(wsData.Cells(2, lastCol + 1), wsData.Cells(lastRow, lastCol + 1)).Value = STATUS_PENDING
+        End If
+    End If
+    
+    ' Create Review sheet if it doesn't exist
+    If Not SheetExists(REVIEW_SHEET_NAME) Then
+        CreateReviewSheet
+    End If
+    
+    MsgBox "Review system has been set up successfully!", vbInformation
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in SetupReviewSystem: " & Err.Description, vbCritical
+End Sub
+
+' Function to create the review sheet
+Private Sub CreateReviewSheet()
+    On Error GoTo ErrorHandler
+    
+    Dim wsReview As Worksheet
+    Dim wsData As Worksheet
+    
+    Set wsData = ThisWorkbook.Worksheets("IntakeData")
+    Set wsReview = ThisWorkbook.Sheets.Add
+    
+    ' Name the new sheet
+    wsReview.Name = REVIEW_SHEET_NAME
+    
+    ' Copy headers from IntakeData
+    wsData.Range("1:1").Copy wsReview.Range("A1")
+    
+    ' Format the review sheet
+    With wsReview
+        ' Format headers
+        .Range("1:1").Font.Bold = True
+        .Range("1:1").Interior.Color = RGB(200, 200, 200)
+        
+        ' Add buttons for each row
+        .Range("A1").Offset(0, wsData.Cells(1, wsData.Columns.Count).End(xlToLeft).Column + 1).Value = "Actions"
+        
+        ' Freeze top row
+        .Range("A2").Select
+        ActiveWindow.FreezePanes = True
+        
+        ' Autofit columns
+        .Cells.EntireColumn.AutoFit
+    End With
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in CreateReviewSheet: " & Err.Description, vbCritical
+End Sub
+
+' Function to move entry to review sheet
+Public Sub MoveToReview(entryId As Long)
+    On Error GoTo ErrorHandler
+    
+    Dim wsData As Worksheet
+    Dim wsReview As Worksheet
+    Dim dataRow As Range
+    Dim reviewRow As Range
+    Dim lastReviewRow As Long
+    
+    Set wsData = ThisWorkbook.Worksheets("IntakeData")
+    Set wsReview = ThisWorkbook.Worksheets(REVIEW_SHEET_NAME)
+    
+    ' Find the row with the entry ID
+    Set dataRow = wsData.Range("A:A").Find(entryId, LookIn:=xlValues)
+    
+    If Not dataRow Is Nothing Then
+        ' Get the last row in review sheet
+        lastReviewRow = wsReview.Cells(wsReview.Rows.Count, "A").End(xlUp).Row + 1
+        
+        ' Copy the row to review sheet
+        dataRow.EntireRow.Copy wsReview.Cells(lastReviewRow, 1)
+        
+        ' Add approve/reject buttons
+        AddReviewButtons wsReview, lastReviewRow
+    Else
+        MsgBox "Entry ID " & entryId & " not found.", vbExclamation
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in MoveToReview: " & Err.Description, vbCritical
+End Sub
+
+' Function to add review buttons
+Private Sub AddReviewButtons(ws As Worksheet, rowNum As Long)
+    On Error GoTo ErrorHandler
+    
+    Dim btn As Button
+    Dim rng As Range
+    Dim lastCol As Long
+    
+    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+    
+    ' Add Approve button
+    Set rng = ws.Cells(rowNum, lastCol + 1)
+    Set btn = ws.Buttons.Add(rng.Left, rng.Top, 60, 20)
+    With btn
+        .OnAction = "'ApproveEntry " & rowNum & "'"
+        .Caption = "Approve"
+    End With
+    
+    ' Add Reject button
+    Set rng = ws.Cells(rowNum, lastCol + 2)
+    Set btn = ws.Buttons.Add(rng.Left, rng.Top, 60, 20)
+    With btn
+        .OnAction = "'RejectEntry " & rowNum & "'"
+        .Caption = "Reject"
+    End With
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in AddReviewButtons: " & Err.Description, vbCritical
+End Sub
+
+' Function to approve entry
+Public Sub ApproveEntry(rowNum As Long)
+    On Error GoTo ErrorHandler
+    
+    UpdateEntryStatus rowNum, STATUS_APPROVED
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in ApproveEntry: " & Err.Description, vbCritical
+End Sub
+
+' Function to reject entry
+Public Sub RejectEntry(rowNum As Long)
+    On Error GoTo ErrorHandler
+    
+    UpdateEntryStatus rowNum, STATUS_REJECTED
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in RejectEntry: " & Err.Description, vbCritical
+End Sub
+
+' Function to update entry status and send notification
+Private Sub UpdateEntryStatus(rowNum As Long, status As String)
+    On Error GoTo ErrorHandler
+    
+    Dim wsReview As Worksheet
+    Dim wsData As Worksheet
+    Dim entryId As Long
+    Dim senderEmail As String
+    Dim dataRow As Range
+    
+    Set wsReview = ThisWorkbook.Worksheets(REVIEW_SHEET_NAME)
+    Set wsData = ThisWorkbook.Worksheets("IntakeData")
+    
+    ' Get Entry ID and sender email from review sheet
+    entryId = wsReview.Cells(rowNum, 1).Value
+    senderEmail = wsReview.Cells(rowNum, 3).Value  ' Assuming email is in column C
+    
+    ' Find corresponding row in IntakeData
+    Set dataRow = wsData.Range("A:A").Find(entryId, LookIn:=xlValues)
+    
+    If Not dataRow Is Nothing Then
+        ' Update status in IntakeData
+        dataRow.Offset(0, wsData.Cells(1, wsData.Columns.Count).End(xlToLeft).Column - 1).Value = status
+        
+        ' Send notification email
+        SendStatusNotification entryId, senderEmail, status
+        
+        ' Remove buttons and mark as processed in review sheet
+        RemoveReviewButtons wsReview, rowNum
+        wsReview.Cells(rowNum, wsReview.Cells(1, wsReview.Columns.Count).End(xlToLeft).Column).Value = "Processed - " & status
+        
+        MsgBox "Entry " & entryId & " has been " & LCase(status) & ".", vbInformation
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in UpdateEntryStatus: " & Err.Description, vbCritical
+End Sub
+
+' Function to remove review buttons
+Private Sub RemoveReviewButtons(ws As Worksheet, rowNum As Long)
+    On Error GoTo ErrorHandler
+    
+    Dim btn As Button
+    
+    ' Remove all buttons in the row
+    For Each btn In ws.Buttons
+        If btn.TopLeftCell.Row = rowNum Then
+            btn.Delete
+        End If
+    Next btn
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in RemoveReviewButtons: " & Err.Description, vbCritical
+End Sub
+
+' Function to send status notification email
+Private Sub SendStatusNotification(entryId As Long, recipientEmail As String, status As String)
+    On Error GoTo ErrorHandler
+    
+    Dim outlookApp As Object
+    Dim mailItem As Object
+    Dim htmlBody As String
+    
+    ' Try to use Outlook
+    Set outlookApp = GetOutlookApp()
+    
+    If Not outlookApp Is Nothing Then
+        Set mailItem = outlookApp.CreateItem(0)  ' 0 = olMailItem
+        
+        With mailItem
+            .To = recipientEmail
+            .Subject = "Intake Form Status Update - Entry ID: " & entryId
+            
+            ' Build HTML body
+            htmlBody = BuildStatusEmailHTML(entryId, status)
+            .HTMLBody = htmlBody
+            
+            .Send
+        End With
+        
+        Set mailItem = Nothing
+    Else
+        ' Fallback to CDO if Outlook is not available
+        SendStatusNotificationCDO entryId, recipientEmail, status
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    Debug.Print "Error in SendStatusNotification: " & Err.Description
+    ' Fallback to CDO if there's an error with Outlook
+    SendStatusNotificationCDO entryId, recipientEmail, status
+End Sub
+
+' Function to send status notification email using CDO
+Private Sub SendStatusNotificationCDO(entryId As Long, recipientEmail As String, status As String)
+    On Error GoTo ErrorHandler
+    
+    Dim cdoMessage As Object
+    Dim cdoConfig As Object
+    Dim htmlBody As String
+    
+    Set cdoMessage = CreateObject("CDO.Message")
+    Set cdoConfig = CreateObject("CDO.Configuration")
+    
+    ' Configure SMTP settings
+    With cdoConfig.Fields
+        .Item("http://schemas.microsoft.com/cdo/configuration/sendusing") = 2
+        .Item("http://schemas.microsoft.com/cdo/configuration/smtpserver") = "smtp.example.com"
+        .Item("http://schemas.microsoft.com/cdo/configuration/smtpserverport") = 25
+        ' Uncomment and set the following if your SMTP server requires authentication
+        '.Item("http://schemas.microsoft.com/cdo/configuration/smtpauthenticate") = 1
+        '.Item("http://schemas.microsoft.com/cdo/configuration/sendusername") = "your_username"
+        '.Item("http://schemas.microsoft.com/cdo/configuration/sendpassword") = "your_password"
+        .Update
+    End With
+    
+    htmlBody = BuildStatusEmailHTML(entryId, status)
+    
+    With cdoMessage
+        Set .Configuration = cdoConfig
+        .To = recipientEmail
+        .From = "sender@example.com"
+        .Subject = "Intake Form Status Update - Entry ID: " & entryId
+        .HTMLBody = htmlBody
+        .Send
+    End With
+    
+    Set cdoMessage = Nothing
+    Set cdoConfig = Nothing
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in SendStatusNotificationCDO: " & Err.Description & vbNewLine & _
+           "Please check your SMTP server settings and network connection.", vbCritical
+End Sub
+
+' Function to build status notification email HTML
+Private Function BuildStatusEmailHTML(entryId As Long, status As String) As String
+    On Error GoTo ErrorHandler
+    
+    Dim html As String
+    
+    html = "<html><head><style>"
+    html = html & "body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }"
+    html = html & "h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }"
+    html = html & ".status-approved { color: #27ae60; font-weight: bold; }"
+    html = html & ".status-rejected { color: #c0392b; font-weight: bold; }"
+    html = html & "</style></head><body>"
+    
+    html = html & "<h1>Intake Form Status Update</h1>"
+    html = html & "<p>Your intake form submission (Entry ID: " & entryId & ") has been reviewed.</p>"
+    
+    html = html & "<p>Status: <span class='status-" & LCase(status) & "'>" & status & "</span></p>"
+    
+    Select Case status
+        Case STATUS_APPROVED
+            html = html & "<p>Your submission has been approved and will be processed accordingly.</p>"
+        Case STATUS_REJECTED
+            html = html & "<p>Your submission has been rejected. Please review and resubmit if necessary.</p>"
+    End Select
+    
+    html = html & "<p>If you have any questions, please contact the review team.</p>"
+    html = html & "</body></html>"
+    
+    BuildStatusEmailHTML = html
+    
+    Exit Function
+    
+ErrorHandler:
+    MsgBox "Error in BuildStatusEmailHTML: " & Err.Description, vbCritical
+    BuildStatusEmailHTML = ""
+End Function
+
