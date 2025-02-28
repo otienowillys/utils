@@ -1,3 +1,22 @@
+Option Explicit
+
+' Constants for status values
+Private Const STATUS_PENDING As String = "Pending"
+Private Const STATUS_APPROVED As String = "Approved"
+Private Const STATUS_REJECTED As String = "Rejected"
+Private Const REVIEW_SHEET_NAME As String = "ReviewEntries"
+
+' Helper function to check if sheet exists - SINGLE DEFINITION
+Private Function DoesSheetExist(sheetName As String) As Boolean
+    Dim ws As Worksheet
+    
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets(sheetName)
+    On Error GoTo 0
+    
+    DoesSheetExist = Not ws Is Nothing
+End Function
+
 Public Sub SetupReviewSystem()
     On Error GoTo ErrorHandler
     
@@ -38,7 +57,7 @@ Public Sub SetupReviewSystem()
     End If
     
     ' Create Review sheet if it doesn't exist
-    If Not SheetExists(REVIEW_SHEET_NAME) Then
+    If Not DoesSheetExist(REVIEW_SHEET_NAME) Then
         CreateReviewSheet
     End If
     
@@ -73,17 +92,6 @@ ErrorHandler:
     
     MsgBox errMsg, vbCritical, "Setup Error"
 End Sub
-
-' Helper function to check if sheet exists
-Private Function SheetExists(sheetName As String) As Boolean
-    Dim ws As Worksheet
-    
-    On Error Resume Next
-    Set ws = ThisWorkbook.Worksheets(sheetName)
-    On Error GoTo 0
-    
-    SheetExists = Not ws Is Nothing
-End Function
 
 ' Function to create the review sheet with improved error handling
 Private Sub CreateReviewSheet()
@@ -168,5 +176,40 @@ ErrorHandler:
     End Select
     
     MsgBox errMsg, vbCritical, "Review Sheet Creation Error"
+End Sub
+
+' Function to move entry to review sheet
+Public Sub MoveToReview(entryId As Long)
+    On Error GoTo ErrorHandler
+    
+    Dim wsData As Worksheet
+    Dim wsReview As Worksheet
+    Dim dataRow As Range
+    Dim reviewRow As Range
+    Dim lastReviewRow As Long
+    
+    Set wsData = ThisWorkbook.Worksheets("IntakeData")
+    Set wsReview = ThisWorkbook.Worksheets(REVIEW_SHEET_NAME)
+    
+    ' Find the row with the entry ID
+    Set dataRow = wsData.Range("A:A").Find(entryId, LookIn:=xlValues)
+    
+    If Not dataRow Is Nothing Then
+        ' Get the last row in review sheet
+        lastReviewRow = wsReview.Cells(wsReview.Rows.Count, "A").End(xlUp).Row + 1
+        
+        ' Copy the row to review sheet
+        dataRow.EntireRow.Copy wsReview.Cells(lastReviewRow, 1)
+        
+        ' Add approve/reject buttons
+        AddReviewButtons wsReview, lastReviewRow
+    Else
+        MsgBox "Entry ID " & entryId & " not found.", vbExclamation
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in MoveToReview: " & Err.Description, vbCritical
 End Sub
 
