@@ -1,0 +1,358 @@
+Option Explicit
+
+' Constants for status values and configuration
+Public Const STATUS_PENDING As String = "Pending"
+Public Const STATUS_APPROVED As String = "Approved"
+Public Const STATUS_REJECTED As String = "Rejected"
+Public Const REVIEW_SHEET_NAME As String = "ReviewEntries"
+
+' Email configuration constants
+Public Const PRIMARY_EMAIL_CELL As String = "B3"    ' Primary recipient
+Public Const CC_EMAIL_CELL As String = "B4"         ' CC recipients
+Public Const REVIEWER_EMAIL_CELL As String = "B5"   ' Reviewer email
+Public Const SMTP_SERVER As String = "smtp.example.com"  ' Update with your SMTP server
+Public Const SMTP_PORT As Integer = 25              ' Update with your SMTP port
+
+' Button configuration
+Public Const BUTTON_WIDTH As Double = 80
+Public Const BUTTON_HEIGHT As Double = 25
+Public Const BUTTON_SPACING As Double = 5
+
+' Color configuration
+Public Const COLOR_APPROVED As Long = &HCCEDC7     ' Light green
+Public Const COLOR_REJECTED As Long = &HC7D7FF     ' Light red
+Public Const COLOR_PENDING As Long = &HFFFFC7      ' Light yellow
+
+' Main initialization function
+Public Sub InitializeReviewSystem()
+    On Error GoTo ErrorHandler
+    
+    ' Setup the review system
+    SetupReviewSystem
+    
+    ' Create the move to review button
+    CreateMoveToReviewButton
+    
+    MsgBox "Review system has been initialized successfully!" & vbNewLine & _
+           "Please update the email settings in the constants section.", vbInformation
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error initializing review system: " & Err.Description, vbCritical
+End Sub
+
+' Setup function for review system
+Public Sub SetupReviewSystem()
+    On Error GoTo ErrorHandler
+    
+    Dim wsData As Worksheet
+    Dim lastCol As Long
+    Dim lastRow As Long
+    Dim statusRange As Range
+    
+    ' Reference the IntakeData worksheet
+    Set wsData = ThisWorkbook.Worksheets("IntakeData")
+    
+    Application.ScreenUpdating = False
+    
+    ' Check if Status column exists
+    lastCol = wsData.Cells(1, wsData.Columns.Count).End(xlToLeft).Column
+    
+    If wsData.Cells(1, lastCol).Value <> "Status" Then
+        ' Add Status column header
+        lastCol = lastCol + 1
+        wsData.Cells(1, lastCol).Value = "Status"
+        
+        ' Add status to existing entries
+        lastRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row
+        
+        If lastRow > 1 Then
+            Set statusRange = wsData.Range(wsData.Cells(2, lastCol), wsData.Cells(lastRow, lastCol))
+            statusRange.Value = STATUS_PENDING
+            
+            ' Format status cells
+            With statusRange
+                .Interior.Color = COLOR_PENDING
+                .HorizontalAlignment = xlCenter
+                .Font.Bold = True
+            End With
+        End If
+    End If
+    
+    ' Create Review sheet if it doesn't exist
+    If Not DoesSheetExist(REVIEW_SHEET_NAME) Then
+        CreateReviewSheet
+    End If
+    
+    Application.ScreenUpdating = True
+    
+    Exit Sub
+    
+ErrorHandler:
+    Application.ScreenUpdating = True
+    MsgBox "Error in SetupReviewSystem: " & Err.Description, vbCritical
+End Sub
+
+' Function to create the review sheet
+Public Sub CreateReviewSheet()
+    On Error GoTo ErrorHandler
+    
+    Dim wsReview As Worksheet
+    Dim wsData As Worksheet
+    Dim lastCol As Long
+    
+    Application.ScreenUpdating = False
+    
+    ' Delete existing review sheet if it exists
+    Application.DisplayAlerts = False
+    On Error Resume Next
+    ThisWorkbook.Worksheets(REVIEW_SHEET_NAME).Delete
+    On Error GoTo ErrorHandler
+    Application.DisplayAlerts = True
+    
+    ' Create new review sheet
+    Set wsData = ThisWorkbook.Worksheets("IntakeData")
+    Set wsReview = ThisWorkbook.Sheets.Add(After:=wsData)
+    
+    wsReview.Name = REVIEW_SHEET_NAME
+    
+    ' Copy headers from IntakeData
+    lastCol = wsData.Cells(1, wsData.Columns.Count).End(xlToLeft).Column
+    wsData.Range(wsData.Cells(1, 1), wsData.Cells(1, lastCol)).Copy _
+        Destination:=wsReview.Range("A1")
+    
+    ' Format the review sheet
+    With wsReview
+        ' Format headers
+        With .Range(.Cells(1, 1), .Cells(1, lastCol))
+            .Font.Bold = True
+            .Interior.Color = RGB(200, 200, 200)
+            .Borders(xlEdgeBottom).LineStyle = xlContinuous
+            .Borders(xlEdgeBottom).Weight = xlMedium
+        End With
+        
+        ' Add Actions header
+        .Cells(1, lastCol + 1).Value = "Actions"
+        .Cells(1, lastCol + 1).Font.Bold = True
+        .Cells(1, lastCol + 1).Interior.Color = RGB(200, 200, 200)
+        
+        ' Add Status header
+        .Cells(1, lastCol + 2).Value = "Review Status"
+        .Cells(1, lastCol + 2).Font.Bold = True
+        .Cells(1, lastCol + 2).Interior.Color = RGB(200, 200, 200)
+        
+        ' Freeze top row and autofit
+        .Rows("2:2").Select
+        ActiveWindow.FreezePanes = True
+        .Cells.EntireColumn.AutoFit
+        
+        ' Add filter buttons
+        .Range(.Cells(1, 1), .Cells(1, lastCol + 2)).AutoFilter
+    End With
+    
+    wsReview.Range("A1").Select
+    Application.ScreenUpdating = True
+    
+    Exit Sub
+    
+ErrorHandler:
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    MsgBox "Error in CreateReviewSheet: " & Err.Description, vbCritical
+End Sub
+
+' Function to create Move to Review button
+Public Sub CreateMoveToReviewButton()
+    On Error GoTo ErrorHandler
+    
+    Dim ws As Worksheet
+    Dim btn As Button
+    
+    Set ws = ThisWorkbook.Worksheets("IntakeData")
+    
+    ' Remove existing button if it exists
+    On Error Resume Next
+    ws.Buttons("MoveToReviewButton").Delete
+    On Error GoTo ErrorHandler
+    
+    ' Add new button
+    Set btn = ws.Buttons.Add(10, 10, 120, 30)
+    With btn
+        .Name = "MoveToReviewButton"
+        .Caption = "Move to Review"
+        .Font.Size = 10
+        .Font.Bold = True
+        .OnAction = "MoveSelectedToReview"
+    End With
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error creating button: " & Err.Description, vbCritical
+End Sub
+
+' Helper function to check if sheet exists
+Public Function DoesSheetExist(sheetName As String) As Boolean
+    Dim ws As Worksheet
+    
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets(sheetName)
+    On Error GoTo 0
+    
+    DoesSheetExist = Not ws Is Nothing
+End Function
+
+' Function to move selected entry to review
+Public Sub MoveSelectedToReview()
+    On Error GoTo ErrorHandler
+    
+    Dim ws As Worksheet
+    Dim selectedCell As Range
+    Dim entryId As Long
+    
+    Set ws = ThisWorkbook.Worksheets("IntakeData")
+    
+    ' Check if a cell is selected
+    If TypeName(Selection) <> "Range" Then
+        MsgBox "Please select a cell in the row you want to review.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Get the Entry ID from column A of the selected row
+    entryId = ws.Cells(Selection.Row, 1).Value
+    
+    If entryId = 0 Then
+        MsgBox "Please select a valid entry row.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Check if entry is already in review
+    If IsEntryInReview(entryId) Then
+        MsgBox "This entry is already in review.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Move the entry to review
+    MoveToReview entryId
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error moving entry to review: " & Err.Description, vbCritical
+End Sub
+
+' Function to check if entry is already in review
+Public Function IsEntryInReview(entryId As Long) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim wsReview As Worksheet
+    Dim foundCell As Range
+    
+    If Not DoesSheetExist(REVIEW_SHEET_NAME) Then
+        IsEntryInReview = False
+        Exit Function
+    End If
+    
+    Set wsReview = ThisWorkbook.Worksheets(REVIEW_SHEET_NAME)
+    Set foundCell = wsReview.Range("A:A").Find(entryId, LookIn:=xlValues)
+    
+    IsEntryInReview = Not foundCell Is Nothing
+    
+    Exit Function
+    
+ErrorHandler:
+    IsEntryInReview = False
+End Function
+
+' Function to move entry to review sheet
+Public Sub MoveToReview(entryId As Long)
+    On Error GoTo ErrorHandler
+    
+    Dim wsData As Worksheet
+    Dim wsReview As Worksheet
+    Dim dataRow As Range
+    Dim lastReviewRow As Long
+    Dim lastCol As Long
+    
+    Set wsData = ThisWorkbook.Worksheets("IntakeData")
+    Set wsReview = ThisWorkbook.Worksheets(REVIEW_SHEET_NAME)
+    
+    ' Find the row with the entry ID
+    Set dataRow = wsData.Range("A:A").Find(entryId, LookIn:=xlValues)
+    
+    If Not dataRow Is Nothing Then
+        ' Get the last row in review sheet
+        lastReviewRow = wsReview.Cells(wsReview.Rows.Count, "A").End(xlUp).Row + 1
+        lastCol = wsData.Cells(1, wsData.Columns.Count).End(xlToLeft).Column
+        
+        ' Copy the row to review sheet
+        wsData.Range(dataRow, dataRow.Offset(0, lastCol - 1)).Copy _
+            wsReview.Cells(lastReviewRow, 1)
+        
+        ' Add approve/reject buttons
+        AddReviewButtons wsReview, lastReviewRow
+        
+        ' Add pending status
+        With wsReview.Cells(lastReviewRow, lastCol + 2)
+            .Value = STATUS_PENDING
+            .Interior.Color = COLOR_PENDING
+            .Font.Bold = True
+            .HorizontalAlignment = xlCenter
+        End With
+        
+        MsgBox "Entry " & entryId & " has been moved to review.", vbInformation
+    Else
+        MsgBox "Entry ID " & entryId & " not found.", vbExclamation
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in MoveToReview: " & Err.Description, vbCritical
+End Sub
+
+' Function to add review buttons
+Public Sub AddReviewButtons(ws As Worksheet, rowNum As Long)
+    On Error GoTo ErrorHandler
+    
+    Dim btnApprove As Button
+    Dim btnReject As Button
+    Dim lastCol As Long
+    Dim buttonLeft As Double
+    
+    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column - 1 ' -1 for status column
+    
+    ' Calculate button positions
+    buttonLeft = ws.Cells(rowNum, lastCol).Left
+    
+    ' Add Approve button
+    Set btnApprove = ws.Buttons.Add(buttonLeft, _
+                                   ws.Cells(rowNum, lastCol).Top, _
+                                   BUTTON_WIDTH, BUTTON_HEIGHT)
+    With btnApprove
+        .Name = "Approve_" & rowNum
+        .Caption = "✓ Approve"
+        .Font.Size = 10
+        .Font.Bold = True
+        .OnAction = "'ApproveEntry " & rowNum & "'"
+    End With
+    
+    ' Add Reject button
+    Set btnReject = ws.Buttons.Add(buttonLeft + BUTTON_WIDTH + BUTTON_SPACING, _
+                                  ws.Cells(rowNum, lastCol).Top, _
+                                  BUTTON_WIDTH, BUTTON_HEIGHT)
+    With btnReject
+        .Name = "Reject_" & rowNum
+        .Caption = "✗ Reject"
+        .Font.Size = 10
+        .Font.Bold = True
+        .OnAction = "'RejectEntry " & rowNum & "'"
+    End With
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error adding review buttons: " & Err.Description, vbCritical
+End Sub
+
