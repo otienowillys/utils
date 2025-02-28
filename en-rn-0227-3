@@ -1,0 +1,810 @@
+Option Explicit
+
+' Constants for status
+Private Const STATUS_PENDING As String = "Pending Review"
+Private Const STATUS_APPROVED As String = "Approved"
+Private Const STATUS_REJECTED As String = "Rejected"
+
+' Main function to handle form submission
+Public Sub SubmitIntake()
+    On Error GoTo ErrorHandler
+    
+    Dim wsInput As Worksheet
+    Dim wsData As Worksheet
+    Dim entryId As Long
+    Dim emailSent As Boolean
+    
+    Set wsInput = ThisWorkbook.Worksheets("IntakeForm")
+    Set wsData = ThisWorkbook.Worksheets("IntakeData")
+    
+    ' Validate form
+    If Not ValidateForm(wsInput) Then
+        MsgBox "Please fill in all required fields.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Get next entry ID
+    entryId = GetNextEntryId(wsData)
+    
+    ' Save form data first
+    SaveFormData wsInput, wsData, entryId
+    
+    ' Try to send email
+    emailSent = SendEmail(wsInput, entryId)
+    
+    ' Restore default values to form
+    ClearForm wsInput
+    
+    ' Format data sheet
+    FormatDataSheet wsData
+    
+    If emailSent Then
+        MsgBox "Form submitted successfully and email sent!" & vbNewLine & _
+               "The submission is now pending review.", vbInformation
+    Else
+        MsgBox "Form submitted successfully, but email could not be sent. The data has been saved." & vbNewLine & _
+               "The submission is now pending review.", vbInformation
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "An error occurred in SubmitIntake: " & Err.Description, vbCritical
+End Sub
+
+' Function to validate form fields
+Private Function ValidateForm(ws As Worksheet) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim cell As Range
+    Dim requiredRange As Range
+    
+    ' Assuming required fields are in column A, rows 2 to 10
+    Set requiredRange = ws.Range("A2:A10")
+    
+    For Each cell In requiredRange
+        If IsEmpty(cell.Offset(0, 1)) Then
+            ValidateForm = False
+            Exit Function
+        End If
+    Next cell
+    
+    ValidateForm = True
+    Exit Function
+    
+ErrorHandler:
+    MsgBox "Error in ValidateForm: " & Err.Description, vbCritical
+    ValidateForm = False
+End Function
+
+' Function to get the next entry ID
+Private Function GetNextEntryId(wsData As Worksheet) As Long
+    On Error GoTo ErrorHandler
+    
+    Dim lastRow As Long
+    
+    lastRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row
+    
+    If lastRow = 1 Then
+        GetNextEntryId = 1
+    Else
+        GetNextEntryId = wsData.Cells(lastRow, "A").Value + 1
+    End If
+    
+    Exit Function
+    
+ErrorHandler:
+    MsgBox "Error in GetNextEntryId: " & Err.Description, vbCritical
+    GetNextEntryId = 0
+End Function
+
+' Function to send email
+Private Function SendEmail(wsInput As Worksheet, entryId As Long) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim outlookApp As Object
+    Dim mailItem As Object
+    Dim htmlBody As String
+    Dim userResponse As VbMsgBoxResult
+    Dim recipientEmail As String
+    
+    ' Try to use Outlook
+    Set outlookApp = GetOutlookApp()
+    
+    ' Get recipient email - can be configured in a settings sheet or cell
+    recipientEmail = GetRecipientEmail()
+    
+    If Not outlookApp Is Nothing Then
+        Set mailItem = outlookApp.CreateItem(0)  ' 0 = olMailItem
+        
+        With mailItem
+            .To = recipientEmail
+            .Subject = "New Intake Form Submission - Entry ID: " & entryId
+            
+            ' Build HTML body
+            htmlBody = BuildEmailHTML(wsInput, entryId)
+            .HTMLBody = htmlBody
+            
+            ' Optional: Add attachments if needed
+            ' .Attachments.Add "path\to\file.xlsx"
+            
+            ' Ask user for confirmation
+            userResponse = MsgBox("Do you want to send this email?" & vbNewLine & _
+                                  "To: " & .To & vbNewLine & _
+                                  "Subject: " & .Subject, vbYesNo + vbQuestion)
+            
+            If userResponse = vbYes Then
+                .Send
+                SendEmail = True
+            Else
+                SendEmail = False
+            End If
+        End With
+        
+        Set mailItem = Nothing
+    Else
+        ' Fallback to CDO if Outlook is not available
+        MsgBox "Outlook is not available. Please make sure Outlook is installed and running.", vbExclamation
+        SendEmail = False
+    End If
+    
+    Exit Function
+    
+ErrorHandler:
+    Debug.Print "Error in SendEmail: " & Err.Description
+    MsgBox "Error sending email: " & Err.Description & vbNewLine & _
+           "Please ensure Outlook is properly configured.", vbExclamation
+    SendEmail = False
+End Function
+
+' Function to get or create Outlook application object
+Private Function GetOutlookApp() As Object
+    On Error Resume Next
+    Set GetOutlookApp = GetObject(, "Outlook.Application")
+    If GetOutlookApp Is Nothing Then
+        Set GetOutlookApp = CreateObject("Outlook.Application")
+    End If
+    On Error GoTo 0
+End Function
+
+' Function to get recipient email (can be modified to read from a settings sheet)
+Private Function GetRecipientEmail() As String
+    ' This could be modified to read from a configuration cell/sheet
+    ' For now, we'll return a default value
+    GetRecipientEmail = "recipient@example.com"
+    
+    ' Example of how to read from a settings sheet:
+    ' Dim wsSettings As Worksheet
+    ' Set wsSettings = ThisWorkbook.Worksheets("Settings")
+    ' GetRecipientEmail = wsSettings.Range("B1").Value
+End Function
+
+' Function to build HTML email content
+Private Function BuildEmailHTML(ws As Worksheet, entryId As Long) As String
+    On Error GoTo ErrorHandler
+    
+    Dim html As String
+    Dim i As Integer
+    Dim fieldName As String
+    Dim fieldValue As String
+    
+    html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1.0'><style>"
+    ' Modern, minimalist styling with a clean aesthetic
+    html = html & "@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap');"
+    html = html & "body { font-family: 'Roboto', sans-serif; line-height: 1.6; color: #333; max-width: 650px; margin: 0 auto; padding: 40px 20px; background-color: #f9f9f9; }"
+    html = html & ".email-container { background-color: white; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 35px; }"
+    html = html & "h1 { color: #1e3a8a; font-weight: 500; letter-spacing: -0.5px; margin-top: 0; margin-bottom: 25px; font-size: 24px; }"
+    html = html & ".subtitle { color: #64748b; font-weight: 300; margin-bottom: 30px; }"
+    html = html & ".entry-badge { display: inline-block; background-color: #f0f9ff; color: #0369a1; padding: 4px 12px; border-radius: 20px; font-size: 14px; font-weight: 500; margin-bottom: 20px; }"
+    html = html & "table { width: 100%; border-collapse: collapse; margin: 25px 0; }"
+    html = html & "th, td { padding: 15px; text-align: left; }"
+    html = html & "th { color: #64748b; font-weight: 400; text-transform: uppercase; font-size: 13px; letter-spacing: 0.7px; border-bottom: 1px solid #e2e8f0; }"
+    html = html & "td { border-bottom: 1px solid #f1f5f9; font-size: 15px; }"
+    html = html & "tr:last-child td { border-bottom: none; }"
+    html = html & ".field-name { color: #475569; font-weight: 500; }"
+    html = html & ".field-value { color: #0f172a; }"
+    html = html & ".highlight { color: #0284c7; font-weight: 500; }"
+    html = html & ".footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 14px; color: #64748b; text-align: center; }"
+    html = html & "</style></head><body>"
+    
+    html = html & "<div class='email-container'>"
+    html = html & "<h1>New Intake Form Submission</h1>"
+    html = html & "<p class='subtitle'>A new intake form has been submitted for your review.</p>"
+    html = html & "<div class='entry-badge'>Entry ID: " & entryId & "</div>"
+    html = html & "<table>"
+    html = html & "<tr><th>Field</th><th>Value</th></tr>"
+    
+    ' Loop through form fields (assuming they're in columns A and B, starting from row 2)
+    For i = 2 To 10  ' Adjust the range as needed
+        If Not IsEmpty(ws.Cells(i, 1)) Then
+            fieldName = ws.Cells(i, 1).Value
+            fieldValue = ws.Cells(i, 2).Value
+            
+            ' Escape HTML special characters
+            fieldName = Replace(Replace(Replace(fieldName, "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
+            fieldValue = Replace(Replace(Replace(fieldValue, "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
+            
+            html = html & "<tr>"
+            html = html & "<td class='field-name'>" & fieldName & "</td>"
+            html = html & "<td class='field-value'>" & fieldValue & "</td>"
+            html = html & "</tr>"
+        End If
+    Next i
+    
+    html = html & "</table>"
+    html = html & "<div class='footer'>Thank you for using our intake form system.</div>"
+    html = html & "</div></body></html>"
+    
+    BuildEmailHTML = html
+    
+    Exit Function
+    
+ErrorHandler:
+    MsgBox "Error in BuildEmailHTML: " & Err.Description, vbCritical
+    BuildEmailHTML = ""
+End Function
+
+' Subroutine to save form data
+Private Sub SaveFormData(wsInput As Worksheet, wsData As Worksheet, entryId As Long)
+    On Error GoTo ErrorHandler
+    
+    Dim lastRow As Long
+    Dim i As Integer
+    
+    lastRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row + 1
+    
+    ' Save Entry ID
+    wsData.Cells(lastRow, "A").Value = entryId
+    
+    ' Save form data (assuming form fields are in column B of wsInput)
+    For i = 2 To 10  ' Adjust the range as needed
+        wsData.Cells(lastRow, i).Value = wsInput.Cells(i, 2).Value
+    Next i
+    
+    ' Add status column (column 11) with default "Pending Review"
+    wsData.Cells(lastRow, 11).Value = STATUS_PENDING
+    
+    ' Add review comments column (column 12) - empty by default
+    wsData.Cells(lastRow, 12).Value = ""
+    
+    ' Add reviewer column (column 13) - empty by default
+    wsData.Cells(lastRow, 13).Value = ""
+    
+    ' Add review date column (column 14) - empty by default
+    wsData.Cells(lastRow, 14).Value = ""
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in SaveFormData: " & Err.Description, vbCritical
+End Sub
+
+' Subroutine to restore default values to form
+Private Sub ClearForm(ws As Worksheet)
+    On Error GoTo ErrorHandler
+    
+    Dim clearRange As Range
+    Dim wsDefaults As Worksheet
+    Dim i As Integer
+    
+    ' Try to get DefaultValues worksheet
+    On Error Resume Next
+    Set wsDefaults = ThisWorkbook.Worksheets("DefaultValues")
+    On Error GoTo ErrorHandler
+    
+    ' Check if DefaultValues sheet exists
+    If wsDefaults Is Nothing Then
+        ' No DefaultValues sheet, just clear the form
+        Set clearRange = ws.Range("B2:B10")
+        clearRange.ClearContents
+        Debug.Print "DefaultValues sheet not found. Form cleared."
+    Else
+        ' DefaultValues sheet exists, load default values
+        For i = 2 To 10  ' Adjust the range as needed
+            If Not IsEmpty(ws.Cells(i, 1)) Then
+                ' Find the corresponding default value by field name
+                Dim fieldName As String
+                Dim defaultCell As Range
+                
+                fieldName = ws.Cells(i, 1).Value
+                Set defaultCell = FindDefaultCell(wsDefaults, fieldName)
+                
+                If Not defaultCell Is Nothing Then
+                    ' Copy default value to the form
+                    ws.Cells(i, 2).Value = defaultCell.Offset(0, 1).Value
+                Else
+                    ' No default found, clear the cell
+                    ws.Cells(i, 2).ClearContents
+                End If
+            End If
+        Next i
+        Debug.Print "Default values loaded from DefaultValues sheet."
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in ClearForm: " & Err.Description, vbCritical
+    
+    ' Fall back to simple clearing if there's an error
+    On Error Resume Next
+    Set clearRange = ws.Range("B2:B10")
+    clearRange.ClearContents
+    On Error GoTo 0
+End Sub
+
+' Helper function to find a default value cell by field name
+Private Function FindDefaultCell(wsDefaults As Worksheet, fieldName As String) As Range
+    On Error GoTo ErrorHandler
+    
+    Dim lastRow As Long
+    Dim i As Long
+    
+    lastRow = wsDefaults.Cells(wsDefaults.Rows.Count, 1).End(xlUp).Row
+    
+    For i = 1 To lastRow
+        If wsDefaults.Cells(i, 1).Value = fieldName Then
+            Set FindDefaultCell = wsDefaults.Cells(i, 1)
+            Exit Function
+        End If
+    Next i
+    
+    ' Field name not found
+    Set FindDefaultCell = Nothing
+    
+    Exit Function
+    
+ErrorHandler:
+    Debug.Print "Error in FindDefaultCell: " & Err.Description
+    Set FindDefaultCell = Nothing
+End Function
+
+' Subroutine to format data sheet
+Private Sub FormatDataSheet(wsData As Worksheet)
+    On Error GoTo ErrorHandler
+    
+    Dim dataRange As Range
+    Dim lastRow As Long
+    Dim lastCol As Long
+    
+    ' Find the last row and column with data
+    lastRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row
+    lastCol = wsData.Cells(1, wsData.Columns.Count).End(xlToLeft).Column
+    
+    ' Ensure we have headers for the review columns
+    If wsData.Cells(1, 11).Value = "" Then wsData.Cells(1, 11).Value = "Status"
+    If wsData.Cells(1, 12).Value = "" Then wsData.Cells(1, 12).Value = "Review Comments"
+    If wsData.Cells(1, 13).Value = "" Then wsData.Cells(1, 13).Value = "Reviewer"
+    If wsData.Cells(1, 14).Value = "" Then wsData.Cells(1, 14).Value = "Review Date"
+    
+    ' Set the data range
+    Set dataRange = wsData.Range(wsData.Cells(1, 1), wsData.Cells(lastRow, lastCol))
+    
+    With dataRange
+        ' Add borders
+        .Borders.LineStyle = xlContinuous
+        .Borders.Weight = xlThin
+        
+        ' Format header row
+        .Rows(1).Font.Bold = True
+        .Rows(1).Interior.Color = RGB(200, 200, 200)
+        
+        ' Autofit columns
+        .Columns.AutoFit
+    End With
+    
+    ' Conditionally format the Status column
+    Dim statusRange As Range
+    Set statusRange = wsData.Range(wsData.Cells(2, 11), wsData.Cells(lastRow, 11))
+    
+    ' Clear existing conditional formatting
+    statusRange.FormatConditions.Delete
+    
+    ' Format "Pending Review" as yellow
+    With statusRange.FormatConditions.Add(Type:=xlCellValue, Operator:=xlEqual, Formula1:="""" & STATUS_PENDING & """")
+        .Interior.Color = RGB(255, 255, 0)
+    End With
+    
+    ' Format "Approved" as green
+    With statusRange.FormatConditions.Add(Type:=xlCellValue, Operator:=xlEqual, Formula1:="""" & STATUS_APPROVED & """")
+        .Interior.Color = RGB(0, 255, 0)
+    End With
+    
+    ' Format "Rejected" as red
+    With statusRange.FormatConditions.Add(Type:=xlCellValue, Operator:=xlEqual, Formula1:="""" & STATUS_REJECTED & """")
+        .Interior.Color = RGB(255, 0, 0)
+    End With
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in FormatDataSheet: " & Err.Description, vbCritical
+End Sub
+
+' New function to review submissions
+Public Sub ReviewSubmission()
+    On Error GoTo ErrorHandler
+    
+    Dim wsData As Worksheet
+    Dim entryId As Long
+    Dim rowIndex As Long
+    Dim statusValue As String
+    Dim comments As String
+    Dim reviewer As String
+    Dim emailSent As Boolean
+    
+    Set wsData = ThisWorkbook.Worksheets("IntakeData")
+    
+    ' Get entry ID to review
+    entryId = Application.InputBox("Enter the Entry ID to review:", "Review Submission", Type:=1)
+    If entryId = 0 Then
+        ' User canceled
+        Exit Sub
+    End If
+    
+    ' Find the row with the entry ID
+    rowIndex = FindEntryRow(wsData, entryId)
+    If rowIndex = 0 Then
+        MsgBox "Entry ID " & entryId & " not found.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Get current status
+    statusValue = wsData.Cells(rowIndex, 11).Value
+    If statusValue <> STATUS_PENDING Then
+        ' Entry has already been reviewed
+        If MsgBox("This entry has already been reviewed as '" & statusValue & "'." & vbNewLine & _
+                 "Do you want to review it again?", vbYesNo + vbQuestion) = vbNo Then
+            Exit Sub
+        End If
+    End If
+    
+    ' Get reviewer name
+    reviewer = Application.InputBox("Enter your name:", "Reviewer Information", Type:=2)
+    If reviewer = "" Then
+        ' User canceled
+        Exit Sub
+    End If
+    
+    ' Prompt for approval/rejection
+    Dim reviewResult As VbMsgBoxResult
+    reviewResult = MsgBox("Do you want to approve this submission?" & vbNewLine & _
+                        "Click 'Yes' to approve or 'No' to reject.", vbYesNo + vbQuestion)
+    
+    If reviewResult = vbYes Then
+        statusValue = STATUS_APPROVED
+    Else
+        statusValue = STATUS_REJECTED
+    End If
+    
+    ' Get comments
+    comments = Application.InputBox("Enter your review comments:", "Review Comments", Type:=2)
+    
+    ' Update the data
+    wsData.Cells(rowIndex, 11).Value = statusValue          ' Status
+    wsData.Cells(rowIndex, 12).Value = comments             ' Comments
+    wsData.Cells(rowIndex, 13).Value = reviewer             ' Reviewer
+    wsData.Cells(rowIndex, 14).Value = Now()                ' Review date
+    
+    ' Send notification email
+    emailSent = SendReviewNotificationEmail(wsData, rowIndex, entryId, statusValue, comments, reviewer)
+    
+    ' Format data sheet
+    FormatDataSheet wsData
+    
+    ' Show confirmation
+    If emailSent Then
+        MsgBox "Review completed successfully and notification email sent!", vbInformation
+    Else
+        MsgBox "Review completed successfully, but notification email could not be sent.", vbInformation
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "An error occurred in ReviewSubmission: " & Err.Description, vbCritical
+End Sub
+
+' Function to find the row index for an entry ID
+Private Function FindEntryRow(wsData As Worksheet, entryId As Long) As Long
+    On Error GoTo ErrorHandler
+    
+    Dim lastRow As Long
+    Dim i As Long
+    
+    lastRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row
+    
+    For i = 2 To lastRow
+        If wsData.Cells(i, 1).Value = entryId Then
+            FindEntryRow = i
+            Exit Function
+        End If
+    Next i
+    
+    ' Entry not found
+    FindEntryRow = 0
+    
+    Exit Function
+    
+ErrorHandler:
+    MsgBox "Error in FindEntryRow: " & Err.Description, vbCritical
+    FindEntryRow = 0
+End Function
+
+' Function to send review notification email
+Private Function SendReviewNotificationEmail(wsData As Worksheet, rowIndex As Long, entryId As Long, status As String, comments As String, reviewer As String) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim outlookApp As Object
+    Dim mailItem As Object
+    Dim htmlBody As String
+    Dim userResponse As VbMsgBoxResult
+    Dim recipientEmail As String
+    
+    ' Try to use Outlook
+    Set outlookApp = GetOutlookApp()
+    
+    ' Get recipient email - can be configured in a settings sheet or cell
+    recipientEmail = GetRecipientEmail()
+    
+    If Not outlookApp Is Nothing Then
+        Set mailItem = outlookApp.CreateItem(0)  ' 0 = olMailItem
+        
+        With mailItem
+            .To = recipientEmail
+            .Subject = "Intake Form Review - Entry ID: " & entryId & " - " & status
+            
+            ' Build HTML body
+            htmlBody = BuildReviewEmailHTML(wsData, rowIndex, entryId, status, comments, reviewer)
+            .HTMLBody = htmlBody
+            
+            ' Optional: Add CC to other stakeholders if needed
+            ' .CC = "manager@example.com"
+            
+            ' Ask user for confirmation
+            userResponse = MsgBox("Do you want to send this review notification email?" & vbNewLine & _
+                                  "To: " & .To & vbNewLine & _
+                                  "Subject: " & .Subject, vbYesNo + vbQuestion)
+            
+            If userResponse = vbYes Then
+                .Send
+                SendReviewNotificationEmail = True
+            Else
+                SendReviewNotificationEmail = False
+            End If
+        End With
+        
+        Set mailItem = Nothing
+    Else
+        ' Outlook not available
+        MsgBox "Outlook is not available. Please make sure Outlook is installed and running.", vbExclamation
+        SendReviewNotificationEmail = False
+    End If
+    
+    Exit Function
+    
+ErrorHandler:
+    Debug.Print "Error in SendReviewNotificationEmail: " & Err.Description
+    MsgBox "Error sending review notification email: " & Err.Description & vbNewLine & _
+           "Please ensure Outlook is properly configured.", vbExclamation
+    SendReviewNotificationEmail = False
+End Function
+
+' Function to build HTML email for review notification
+Private Function BuildReviewEmailHTML(wsData As Worksheet, rowIndex As Long, entryId As Long, status As String, comments As String, reviewer As String) As String
+    On Error GoTo ErrorHandler
+    
+    Dim html As String
+    Dim i As Integer
+    Dim fieldName As String
+    Dim fieldValue As String
+    Dim statusColor As String
+    Dim statusBgColor As String
+    Dim statusIcon As String
+    
+    ' Determine status colors and icon
+    Select Case status
+        Case STATUS_APPROVED
+            statusColor = "#059669"      ' Green
+            statusBgColor = "#ECFDF5"    ' Light green background
+            statusIcon = "&#10004;"      ' Checkmark
+        Case STATUS_REJECTED
+            statusColor = "#DC2626"      ' Red
+            statusBgColor = "#FEF2F2"    ' Light red background
+            statusIcon = "&#10006;"      ' X mark
+        Case Else
+            statusColor = "#D97706"      ' Amber/Orange
+            statusBgColor = "#FFFBEB"    ' Light yellow background
+            statusIcon = "&#8987;"       ' Clock symbol
+    End Select
+    
+    html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1.0'><style>"
+    ' Modern, minimalist styling with a clean aesthetic
+    html = html & "@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap');"
+    html = html & "body { font-family: 'Roboto', sans-serif; line-height: 1.6; color: #333; max-width: 650px; margin: 0 auto; padding: 40px 20px; background-color: #f9f9f9; }"
+    html = html & ".email-container { background-color: white; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 35px; }"
+    html = html & "h1 { color: #1e3a8a; font-weight: 500; letter-spacing: -0.5px; margin-top: 0; margin-bottom: 25px; font-size: 24px; }"
+    html = html & "h2 { color: #1e3a8a; font-weight: 500; font-size: 18px; margin-top: 30px; margin-bottom: 15px; }"
+    html = html & ".subtitle { color: #64748b; font-weight: 300; margin-bottom: 30px; }"
+    
+    ' Status badge styling
+    html = html & ".status-badge { display: inline-flex; align-items: center; justify-content: center; background-color: " & statusBgColor & "; "
+    html = html & "color: " & statusColor & "; padding: 8px 16px; border-radius: 30px; font-size: 14px; font-weight: 500; margin-bottom: 25px; }"
+    html = html & ".status-icon { margin-right: 8px; font-size: 16px; font-weight: bold; }"
+    
+    ' Review card styling
+    html = html & ".review-card { background-color: #f8fafc; border-radius: 8px; padding: 25px; margin: 25px 0; }"
+    html = html & ".review-row { display: flex; margin-bottom: 12px; }"
+    html = html & ".review-label { flex: 0 0 130px; color: #64748b; font-size: 14px; }"
+    html = html & ".review-value { flex: 1; color: #334155; font-weight: 500; }"
+    html = html & ".review-comments { margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0; }"
+    html = html & ".comment-label { color: #64748b; font-size: 14px; margin-bottom: 8px; }"
+    html = html & ".comment-text { color: #334155; background-color: white; border-radius: 6px; padding: 12px; border-left: 3px solid " & statusColor & "; }"
+    
+    ' Table styling
+    html = html & "table { width: 100%; border-collapse: collapse; margin: 25px 0; }"
+    html = html & "th, td { padding: 15px; text-align: left; }"
+    html = html & "th { color: #64748b; font-weight: 400; text-transform: uppercase; font-size: 13px; letter-spacing: 0.7px; border-bottom: 1px solid #e2e8f0; }"
+    html = html & "td { border-bottom: 1px solid #f1f5f9; font-size: 15px; }"
+    html = html & "tr:last-child td { border-bottom: none; }"
+    html = html & ".field-name { color: #475569; font-weight: 500; }"
+    html = html & ".field-value { color: #0f172a; }"
+    html = html & ".footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 14px; color: #64748b; text-align: center; }"
+    html = html & "</style></head><body>"
+    
+    html = html & "<div class='email-container'>"
+    html = html & "<h1>Intake Form Review Notification</h1>"
+    html = html & "<p class='subtitle'>The following submission has been reviewed and a decision has been made.</p>"
+    
+    ' Status badge
+    html = html & "<div class='status-badge'><span class='status-icon'>" & statusIcon & "</span> " & status & "</div>"
+    
+    ' Review details card
+    html = html & "<div class='review-card'>"
+    html = html & "<div class='review-row'><div class='review-label'>Entry ID:</div><div class='review-value'>" & entryId & "</div></div>"
+    html = html & "<div class='review-row'><div class='review-label'>Reviewer:</div><div class='review-value'>" & reviewer & "</div></div>"
+    html = html & "<div class='review-row'><div class='review-label'>Review Date:</div><div class='review-value'>" & Format(wsData.Cells(rowIndex, 14).Value, "yyyy-mm-dd hh:mm:ss") & "</div></div>"
+    
+    ' Comments section (if provided)
+    If comments <> "" Then
+        html = html & "<div class='review-comments'>"
+        html = html & "<div class='comment-label'>Review Comments:</div>"
+        html = html & "<div class='comment-text'>" & comments & "</div>"
+        html = html & "</div>"
+    End If
+    
+    html = html & "</div>" ' Close review card
+    
+    ' Submission details
+    html = html & "<h2>Submission Details</h2>"
+    html = html & "<table>"
+    html = html & "<tr><th>Field</th><th>Value</th></tr>"
+    
+    ' Loop through form data (columns 1 to 10 in data sheet)
+    For i = 1 To 10
+        If Not IsEmpty(wsData.Cells(1, i)) And Not IsEmpty(wsData.Cells(rowIndex, i)) Then
+            fieldName = wsData.Cells(1, i).Value
+            fieldValue = wsData.Cells(rowIndex, i).Value
+            
+            ' Escape HTML special characters
+            fieldName = Replace(Replace(Replace(fieldName, "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
+            If IsDate(fieldValue) Then
+                fieldValue = Format(fieldValue, "yyyy-mm-dd")
+            Else
+                fieldValue = Replace(Replace(Replace(CStr(fieldValue), "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
+            End If
+            
+            html = html & "<tr>"
+            html = html & "<td class='field-name'>" & fieldName & "</td>"
+            html = html & "<td class='field-value'>" & fieldValue & "</td>"
+            html = html & "</tr>"
+        End If
+    Next i
+    
+    html = html & "</table>"
+    html = html & "<div class='footer'>Thank you for using our intake form system.</div>"
+    html = html & "</div></body></html>"
+    
+    BuildReviewEmailHTML = html
+    
+    Exit Function
+    
+ErrorHandler:
+    MsgBox "Error in BuildReviewEmailHTML: " & Err.Description, vbCritical
+    BuildReviewEmailHTML = ""
+End Function
+
+' Add a function to view pending submissions
+Public Sub ViewPendingSubmissions()
+    On Error GoTo ErrorHandler
+    
+    Dim wsData As Worksheet
+    Dim pendingCount As Long
+    Dim statusRange As Range
+    Dim msg As String
+    
+    Set wsData = ThisWorkbook.Worksheets("IntakeData")
+    
+    ' Count pending submissions
+    pendingCount = WorksheetFunction.CountIf(wsData.Columns(11), STATUS_PENDING)
+    
+    If pendingCount = 0 Then
+        MsgBox "There are no pending submissions to review.", vbInformation
+        Exit Sub
+    End If
+    
+    ' Build message with pending submission IDs
+    msg = "There are " & pendingCount & " pending submissions:" & vbNewLine & vbNewLine
+    
+    Dim lastRow As Long
+    Dim i As Long
+    
+    lastRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row
+    
+    For i = 2 To lastRow
+        If wsData.Cells(i, 11).Value = STATUS_PENDING Then
+            msg = msg & "Entry ID: " & wsData.Cells(i, 1).Value
+            
+            ' Add submission date if available
+            If Not IsEmpty(wsData.Cells(i, 3).Value) And IsDate(wsData.Cells(i, 3).Value) Then
+                msg = msg & " - Date: " & Format(wsData.Cells(i, 3).Value, "yyyy-mm-dd")
+            End If
+            
+            msg = msg & vbNewLine
+        End If
+    Next i
+    
+    msg = msg & vbNewLine & "Use the ReviewSubmission function to review these submissions."
+    
+    MsgBox msg, vbInformation
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in ViewPendingSubmissions: " & Err.Description, vbCritical
+End Sub
+
+' Function to create DefaultValues sheet if it doesn't exist
+Public Sub CreateDefaultValuesSheet()
+    On Error Resume Next
+    
+    Dim wsDefaults As Worksheet
+    Dim wsInput As Worksheet
+    Dim i As Integer
+    
+    ' Check if DefaultValues sheet already exists
+    Set wsDefaults = ThisWorkbook.Worksheets("DefaultValues")
+    
+    If wsDefaults Is Nothing Then
+        ' Create new DefaultValues sheet
+        Set wsDefaults = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+        wsDefaults.Name = "DefaultValues"
+        
+        ' Set up header
+        wsDefaults.Range("A1").Value = "Field Name"
+        wsDefaults.Range("B1").Value = "Default Value"
+        wsDefaults.Range("A1:B1").Font.Bold = True
+        
+        ' Copy field names from IntakeForm
+        Set wsInput = ThisWorkbook.Worksheets("IntakeForm")
+        
+        For i = 2 To 10  ' Adjust range as needed
+            If Not IsEmpty(wsInput.Cells(i, 1)) Then
+                wsDefaults.Cells(i, 1).Value = wsInput.Cells(i, 1).Value
+                
+                ' Copy current values as defaults (optional)
+                If Not IsEmpty(wsInput.Cells(i, 2)) Then
+                    wsDefaults.Cells(i, 2).Value = wsInput.Cells(i, 2).Value
+                End If
+            End If
+        Next i
+        
+        ' Format the sheet
+        wsDefaults.Columns("A:B").AutoFit
+        
+        MsgBox "DefaultValues sheet has been created." & vbNewLine & _
+               "You can now enter default values for the form fields.", vbInformation
+    Else
+        MsgBox "DefaultValues sheet already exists.", vbInformation
+    End If
+End Sub
