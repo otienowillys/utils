@@ -53,7 +53,106 @@ Private Function BuildReviewEmailHTML(wsData As Worksheet, rowIndex As Long, ent
     ' Modern table design
     html = html & "table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 25px 0; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }"
     html = html & "th { background: linear-gradient(135deg, #4776E6 0%, #8E54E9 100%); color: white; font-weight: 500; text-align: left; padding: 16px; font-size: 14px; letter-spacing: 0.5px; }"
-    html = html & "td { padding: 16px; border-bottom: 1px solid #E2E8F0' Create a modern ribbon menu
+    html = html & "td { padding: 16px; border-bottom: 1px solid #E2E8F0; font-size: 15px; }"
+    html = html & "tr:last-child td { border-bottom: none; }"
+    html = html & "tr:nth-child(even) { background-color: #F7FAFC; }"
+    html = html & ".category-cell { color: #2D3748; font-weight: 500; }"
+    
+    ' Button styling
+    html = html & ".button-container { text-align: center; margin-top: 30px; }"
+    html = html & ".button { display: inline-block; background: linear-gradient(135deg, #4776E6 0%, #8E54E9 100%); color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 500; transition: all 0.3s ease; box-shadow: 0 4px 10px rgba(71, 118, 230, 0.2); }"
+    html = html & ".button:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(71, 118, 230, 0.3); }"
+    
+    ' Footer styling
+    html = html & ".footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #E2E8F0; color: #718096; font-size: 14px; text-align: center; }"
+    html = html & "</style></head><body>"
+    
+    html = html & "<div class='email-container'>"
+    html = html & "<div class='header-section'>"
+    html = html & "<h1>Intake Form Review Complete</h1>"
+    html = html & "<p class='subtitle'>The following submission has been reviewed and a decision has been made.</p>"
+    html = html & "<div class='entry-id'>Entry ID: " & entryId & "</div>"
+    html = html & "</div>"
+    
+    ' Status badge - make it prominent
+    html = html & "<div style='text-align:center; margin-bottom: 30px;'>"
+    html = html & "<span class='status-badge " & statusClass & "'><span class='status-icon'>" & statusIcon & "</span> " & status & "</span>"
+    html = html & "</div>"
+    
+    ' Review cards in a flex layout
+    html = html & "<div class='review-cards'>"
+    
+    ' Review details card
+    html = html & "<div class='review-card'>"
+    html = html & "<h3>Review Details</h3>"
+    html = html & "<div class='review-detail'>"
+    html = html & "<span class='review-label'>Reviewer</span>"
+    html = html & "<span class='review-value'>" & reviewer & "</span>"
+    html = html & "</div>"
+    html = html & "<div class='review-detail'>"
+    html = html & "<span class='review-label'>Review Date</span>"
+    html = html & "<span class='review-value'>" & Format(wsData.Cells(rowIndex, 44).Value, "yyyy-mm-dd") & "</span>"
+    html = html & "</div>"
+    html = html & "</div>"
+    
+    ' Comments card
+    html = html & "<div class='review-card'>"
+    html = html & "<h3>Review Comments</h3>"
+    If comments <> "" Then
+        html = html & "<div class='review-comments'>" & comments & "</div>"
+    Else
+        html = html & "<p style='color: #718096;'>No additional comments provided.</p>"
+    End If
+    html = html & "</div>"
+    html = html & "</div>"
+    
+    ' Submission details
+    html = html & "<h2>Submission Details</h2>"
+    html = html & "<table>"
+    html = html & "<tr><th>Category</th><th>Details</th><th>Status</th></tr>"
+    
+    ' Loop through form data (columns 1 to 40 in data sheet)
+    For i = 1 To 40
+        If Not IsEmpty(wsData.Cells(1, i)) And Not IsEmpty(wsData.Cells(rowIndex, i)) Then
+            fieldName = wsData.Cells(1, i).Value
+            fieldValue = wsData.Cells(rowIndex, i).Value
+            
+            ' Escape HTML special characters
+            fieldName = Replace(Replace(Replace(fieldName, "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
+            If IsDate(fieldValue) Then
+                fieldValue = Format(fieldValue, "yyyy-mm-dd")
+            Else
+                fieldValue = Replace(Replace(Replace(CStr(fieldValue), "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
+            End If
+            
+            html = html & "<tr>"
+            html = html & "<td class='category-cell'>" & fieldName & "</td>"
+            html = html & "<td>" & fieldValue & "</td>"
+            html = html & "<td><span class='status-badge " & statusClass & "' style='padding: 4px 8px; font-size: 12px;'>" & status & "</span></td>"
+            html = html & "</tr>"
+        End If
+    Next i
+    
+    html = html & "</table>"
+    
+    html = html & "<div class='button-container'>"
+    html = html & "<a href='#' class='button'>View in System</a>"
+    html = html & "</div>"
+    
+    html = html & "<div class='footer'>"
+    html = html & "Thank you for using our intake form system. If you have any questions, please contact support."
+    html = html & "</div>"
+    
+    html = html & "</div></body></html>"
+    
+    BuildReviewEmailHTML = html
+    
+    Exit Function
+    
+ErrorHandler:
+    MsgBox "Error in BuildReviewEmailHTML: " & Err.Description, vbCritical
+    BuildReviewEmailHTML = ""
+End Function' Create a modern ribbon menu
 Public Sub CreateCustomRibbon()
     ' Note: This function is just a placeholder as actual Ribbon customization
     ' requires XML and other components. In a real implementation, you would
@@ -1195,7 +1294,7 @@ ErrorHandler:
     FindEntryRow = 0
 End Function
 
-' Function to send review notification email
+' ' Function to send review notification email
 Private Function SendReviewNotificationEmail(wsData As Worksheet, rowIndex As Long, entryId As Long, status As String, comments As String, reviewer As String) As Boolean
     On Error GoTo ErrorHandler
     
