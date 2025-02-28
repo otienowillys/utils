@@ -1,0 +1,137 @@
+Option Explicit
+
+' Constants for status values and configuration
+Private Const STATUS_PENDING As String = "Pending"
+Private Const STATUS_APPROVED As String = "Approved"
+Private Const STATUS_REJECTED As String = "Rejected"
+Private Const REVIEW_SHEET_NAME As String = "ReviewEntries"
+
+' Email configuration constants
+Private Const PRIMARY_EMAIL_CELL As String = "B3"    ' Primary recipient
+Private Const CC_EMAIL_CELL As String = "B4"         ' CC recipients
+Private Const REVIEWER_EMAIL_CELL As String = "B5"   ' Reviewer email
+Private Const SMTP_SERVER As String = "smtp.example.com"  ' Update with your SMTP server
+Private Const SMTP_PORT As Integer = 25              ' Update with your SMTP port
+
+' Button configuration
+Private Const BUTTON_WIDTH As Double = 80
+Private Const BUTTON_HEIGHT As Double = 25
+Private Const BUTTON_SPACING As Double = 5
+
+' Color configuration
+Private Const COLOR_APPROVED As Long = &HCCEDC7     ' Light green
+Private Const COLOR_REJECTED As Long = &HC7D7FF     ' Light red
+Private Const COLOR_PENDING As Long = &HFFFFC7      ' Light yellow
+
+' Main initialization function
+Public Sub InitializeReviewSystem()
+    On Error GoTo ErrorHandler
+    
+    ' Setup the review system
+    SetupReviewSystem
+    
+    ' Create the move to review button
+    CreateMoveToReviewButton
+    
+    MsgBox "Review system has been initialized successfully!" & vbNewLine & _
+           "Please update the email settings in the constants section.", vbInformation
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error initializing review system: " & Err.Description, vbCritical
+End Sub
+
+' Setup function for review system
+Public Sub SetupReviewSystem()
+    On Error GoTo ErrorHandler
+    
+    Dim wsData As Worksheet
+    Dim lastCol As Long
+    Dim lastRow As Long
+    Dim statusRange As Range
+    
+    ' Reference the IntakeData worksheet
+    Set wsData = ThisWorkbook.Worksheets("IntakeData")
+    
+    Application.ScreenUpdating = False
+    
+    ' Check if Status column exists
+    lastCol = wsData.Cells(1, wsData.Columns.Count).End(xlToLeft).Column
+    
+    If wsData.Cells(1, lastCol).Value <> "Status" Then
+        ' Add Status column header
+        lastCol = lastCol + 1
+        wsData.Cells(1, lastCol).Value = "Status"
+        
+        ' Add status to existing entries
+        lastRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row
+        
+        If lastRow > 1 Then
+            Set statusRange = wsData.Range(wsData.Cells(2, lastCol), wsData.Cells(lastRow, lastCol))
+            statusRange.Value = STATUS_PENDING
+            
+            ' Format status cells
+            With statusRange
+                .Interior.Color = COLOR_PENDING
+                .HorizontalAlignment = xlCenter
+                .Font.Bold = True
+            End With
+        End If
+    End If
+    
+    ' Create Review sheet if it doesn't exist
+    If Not DoesSheetExist(REVIEW_SHEET_NAME) Then
+        CreateReviewSheet
+    End If
+    
+    Application.ScreenUpdating = True
+    
+    Exit Sub
+    
+ErrorHandler:
+    Application.ScreenUpdating = True
+    MsgBox "Error in SetupReviewSystem: " & Err.Description, vbCritical
+End Sub
+
+' Function to create Move to Review button
+Public Sub CreateMoveToReviewButton()
+    On Error GoTo ErrorHandler
+    
+    Dim ws As Worksheet
+    Dim btn As Button
+    
+    Set ws = ThisWorkbook.Worksheets("IntakeData")
+    
+    ' Remove existing button if it exists
+    On Error Resume Next
+    ws.Buttons("MoveToReviewButton").Delete
+    On Error GoTo ErrorHandler
+    
+    ' Add new button
+    Set btn = ws.Buttons.Add(10, 10, 120, 30)
+    With btn
+        .Name = "MoveToReviewButton"
+        .Caption = "Move to Review"
+        .Font.Size = 10
+        .Font.Bold = True
+        .OnAction = "MoveSelectedToReview"
+    End With
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error creating button: " & Err.Description, vbCritical
+End Sub
+
+' Helper function to check if sheet exists
+Private Function DoesSheetExist(sheetName As String) As Boolean
+    Dim ws As Worksheet
+    
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets(sheetName)
+    On Error GoTo 0
+    
+    DoesSheetExist = Not ws Is Nothing
+End Function
+
