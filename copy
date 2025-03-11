@@ -1,0 +1,15 @@
+@echo off
+setlocal
+
+set "sourceComputer=\\SOURCE_COMPUTER_NAME"
+set "destinationComputer=\\DESTINATION_COMPUTER_NAME"
+set "sourceDirectory=\\SOURCE_COMPUTER_NAME\SharedFolder\Data"
+set "destinationDirectory=\\DESTINATION_COMPUTER_NAME\Backup\Data"
+
+echo %sourceDirectory%
+echo %destinationDirectory%
+
+robocopy "%sourceDirectory%" "%destinationDirectory%" /E /ZB /COPY:DATSOU /R:3 /W:5
+
+endlocal
+pause
