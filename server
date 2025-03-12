@@ -41,3 +41,14 @@ git diff HEAD~1 HEAD -- path/to/document.docx | sed -e 's/^+/**🟢 Added:** /' 
 
 echo -e "**📅 Date:** $(date)\n**🔍 Compared Commits:** HEAD~1 ↔ HEAD\n\n$(cat changes.md)" > changes.md
 
+
+
+git diff HEAD~1 HEAD -- path/to/document.docx | awk '
+  /^+/ {print "**🟢 Added:** " substr($0,2)}
+  /^-/ {print "**🔴 Removed:** " substr($0,2)}
+  /^@@/ {print "**🔄 Context:** " substr($0,2)}
+  /^\|/ {print "**📊 Table Change:** " $0}
+  /^\!\[/ {print "**🖼️ Figure Change:** " $0}
+  /Table of Contents/ {print "**📖 Table of Contents Updated**"}
+' > changes.md
+
