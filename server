@@ -52,3 +52,15 @@ git diff HEAD~1 HEAD -- path/to/document.docx | awk '
   /Table of Contents/ {print "**📖 Table of Contents Updated**"}
 ' > changes.md
 
+
+
+git diff HEAD~1 HEAD -- path/to/document.docx | sed -E '
+  s/^(\+)/🟢 **Added:** /;
+  s/^(-)/🔴 **Removed:** /;
+  s/^(@@)/🔄 **Context:** /;
+  s/^(\|)/📊 **Table Change:** /;
+  s/^(!\[)/🖼️ **Figure Change:** /;
+  /Table of Contents/ s/.*/📖 **Table of Contents Updated**/
+' > changes.md
+
+
