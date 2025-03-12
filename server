@@ -32,3 +32,5 @@ app.prepare().then(() => {
 
 git config --global diff.word.textconv "unzip -p %f word/document.xml | sed -e 's/<[^>]\{1,\}>//g; s/[^[:print:]]\{1,\}//g'"
 git config diff.word.textconv "unzip -c %f word/document.xml | tr -d '\\r' | sed -e 's/<[^>]*>//g' | sed -e 's/[^[:print:]]//g'"
+
+git diff HEAD~1 HEAD -- path/to/document.docx | sed -e 's/^+/**Added:** /' -e 's/^-/**Removed:** /' > changes.md
