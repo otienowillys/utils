@@ -64,3 +64,13 @@ git diff HEAD~1 HEAD -- path/to/document.docx | sed -E '
 ' > changes.md
 
 
+git diff HEAD~1 HEAD -- path/to/document.docx | sed -E '
+  s/^(\+)/| Section | Original Text | Updated Text | Type |\n|---------|--------------|--------------|------|\n| Unknown |  | \1 | 🟢 Added |/;
+  s/^(-)/| Unknown | \1 |  | 🔴 Removed |/;
+  s/^(@@)/| **🔄 Context Change** | - | - | **🔄 Context** |/;
+  s/^(\|)/| Table | \1 | | 📊 Table Change |/;
+  s/^(!\[)/| Figure | \1 | | 🖼️ Figure Change |/;
+  /Table of Contents/ s/.*/| Table of Contents | - | - | 📖 Updated |/
+' > changes.md
+
+
