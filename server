@@ -27,3 +27,7 @@ app.prepare().then(() => {
     </rewrite>
   </system.webServer>
 </configuration>
+
+
+
+git config --global diff.word.textconv "unzip -p %f word/document.xml | sed -e 's/<[^>]\{1,\}>//g; s/[^[:print:]]\{1,\}//g'"
