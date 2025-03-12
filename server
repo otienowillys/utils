@@ -74,3 +74,6 @@ git diff HEAD~1 HEAD -- path/to/document.docx | sed -E '
 ' > changes.md
 
 
+pandoc --from=markdown --to=docx --reference-doc=template.docx changes.md -o changes.docx
+
+
