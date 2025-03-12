@@ -34,3 +34,10 @@ git config --global diff.word.textconv "unzip -p %f word/document.xml | sed -e '
 git config diff.word.textconv "unzip -c %f word/document.xml | tr -d '\\r' | sed -e 's/<[^>]*>//g' | sed -e 's/[^[:print:]]//g'"
 
 git diff HEAD~1 HEAD -- path/to/document.docx | sed -e 's/^+/**Added:** /' -e 's/^-/**Removed:** /' > changes.md
+
+
+
+git diff HEAD~1 HEAD -- path/to/document.docx | sed -e 's/^+/**🟢 Added:** /' -e 's/^-/**🔴 Removed:** /' -e 's/^@@/**🔄 Context:** /' > changes.md
+
+echo -e "**📅 Date:** $(date)\n**🔍 Compared Commits:** HEAD~1 ↔ HEAD\n\n$(cat changes.md)" > changes.md
+
