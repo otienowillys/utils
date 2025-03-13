@@ -100,6 +100,12 @@ pandoc -s version2.docx -t markdown -o version2.md
 git diff --word-diff=color version1.md version2.md > changes.md
 git diff --word-diff=plain version1.md version2.md > changes.md
 
+pandoc --track-changes=all -o changes.docx version1.docx version2.docx
+
+
+
+git diff --word-diff=plain version1.md version2.md > changes.md
+
 pandoc -s changes.md -o changes.docx
 
 
