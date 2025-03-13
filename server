@@ -1,3 +1,7 @@
+
+
+
+
 const next = require('next');
 const http = require('http');
 
@@ -75,5 +79,28 @@ git diff HEAD~1 HEAD -- path/to/document.docx | sed -E '
 
 
 pandoc --from=markdown --to=docx --reference-doc=template.docx changes.md -o changes.docx
+
+
+
+
+
+
+
+git log --oneline -- path/to/document.docx
+
+
+git show <commit1>:path/to/document.docx > version1.docx
+git show <commit2>:path/to/document.docx > version2.docx
+
+
+pandoc -s version1.docx -t markdown -o version1.md
+pandoc -s version2.docx -t markdown -o version2.md
+
+
+git diff --word-diff=color version1.md version2.md > changes.md
+git diff --word-diff=plain version1.md version2.md > changes.md
+
+pandoc -s changes.md -o changes.docx
+
 
 
