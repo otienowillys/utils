@@ -1,0 +1,388 @@
+Option Explicit
+
+' Constants
+Const EMAIL_SUBJECT As String = "Important Notification"
+Const EMAIL_BODY As String = "Please find the attached document."
+Const ATTACHMENT_FILENAME As String = "document.pdf"
+Const EMAIL_COLUMN As String = "A"
+Const FOLDER_COLUMN As String = "B"
+Const START_ROW As Integer = 1
+Const END_ROW As Integer = 120
+Const LOG_SHEET_NAME As String = "EmailLog"
+
+' Global variables
+Dim successCount As Integer
+Dim failCount As Integer
+Dim processedEmails As Collection
+
+' Main procedure triggered by the button click
+Sub SendEmails()
+    ' Initialize variables
+    successCount = 0
+    failCount = 0
+    Set processedEmails = New Collection
+    
+    ' Declare other variables
+    Dim ws As Worksheet
+    Dim logWs As Worksheet
+    Dim i As Integer
+    Dim emailAddress As String
+    Dim folderPath As String
+    Dim attachmentPath As String
+    Dim isValid As Boolean
+    Dim errorMsg As String
+    Dim sendResult As Boolean
+    Dim sendError As String
+    
+    ' Set reference to active worksheet
+    Set ws = ActiveSheet
+    
+    ' Create or get log sheet
+    On Error Resume Next
+    Set logWs = ThisWorkbook.Sheets(LOG_SHEET_NAME)
+    On Error GoTo 0
+    
+    If logWs Is Nothing Then
+        ' Create log sheet if it doesn't exist
+        Set logWs = ThisWorkbook.Sheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+        logWs.Name = LOG_SHEET_NAME
+        
+        ' Create headers for log sheet
+        With logWs
+            .Cells(1, 1).Value = "Date/Time"
+            .Cells(1, 2).Value = "Recipient"
+            .Cells(1, 3).Value = "CC"
+            .Cells(1, 4).Value = "Folder Path"
+            .Cells(1, 5).Value = "Attachment Path"
+            .Cells(1, 6).Value = "Status"
+            .Cells(1, 7).Value = "Error Message"
+            
+            ' Format headers
+            .Range("A1:G1").Font.Bold = True
+            .Range("A:A").NumberFormat = "yyyy-mm-dd hh:mm:ss"
+            .Range("A:G").EntireColumn.AutoFit
+        End With
+    End If
+    
+    ' Find the next empty row in the log sheet
+    Dim nextLogRow As Long
+    nextLogRow = logWs.Cells(logWs.Rows.Count, 1).End(xlUp).Row + 1
+    
+    ' Clear any previous formatting
+    ws.Range(EMAIL_COLUMN & START_ROW & ":" & FOLDER_COLUMN & END_ROW).Interior.ColorIndex = xlNone
+    ws.Range(EMAIL_COLUMN & START_ROW & ":" & FOLDER_COLUMN & END_ROW).ClearComments
+    
+    ' Loop through each row
+    For i = START_ROW To END_ROW
+        ' Reset for each row
+        isValid = True
+        errorMsg = ""
+        
+        ' Get email address and folder path from cells
+        emailAddress = Trim(ws.Range(EMAIL_COLUMN & i).Value)
+        folderPath = Trim(ws.Range(FOLDER_COLUMN & i).Value)
+        
+        ' Skip empty rows
+        If emailAddress = "" And folderPath = "" Then
+            GoTo NextRow
+        End If
+        
+        ' Validate inputs
+        If emailAddress = "" Then
+            MarkInvalid ws.Range(EMAIL_COLUMN & i), "Email address is missing"
+            isValid = False
+            errorMsg = "Email address is missing"
+        ElseIf Not IsValidEmail(emailAddress) Then
+            MarkInvalid ws.Range(EMAIL_COLUMN & i), "Invalid email format"
+            isValid = False
+            errorMsg = "Invalid email format"
+        End If
+        
+        If folderPath = "" Then
+            MarkInvalid ws.Range(FOLDER_COLUMN & i), "Folder path is missing"
+            isValid = False
+            errorMsg = IIf(errorMsg = "", "Folder path is missing", errorMsg & "; Folder path is missing")
+        ElseIf Not FolderExists(folderPath) Then
+            MarkInvalid ws.Range(FOLDER_COLUMN & i), "Folder does not exist"
+            isValid = False
+            errorMsg = IIf(errorMsg = "", "Folder does not exist", errorMsg & "; Folder does not exist")
+        End If
+        
+        ' Check for duplicate email
+        If isValid Then
+            On Error Resume Next
+            Dim testDup As Variant
+            testDup = processedEmails(emailAddress)
+            If Err.Number = 0 Then
+                ' Email already processed
+                MarkInvalid ws.Range(EMAIL_COLUMN & i), "Duplicate email address"
+                isValid = False
+                errorMsg = "Duplicate email address"
+            Else
+                ' Add to processed collection
+                processedEmails.Add emailAddress, emailAddress
+            End If
+            On Error GoTo 0
+        End If
+        
+        ' Process valid entries
+        If isValid Then
+            ' Construct attachment path
+            attachmentPath = BuildPath(folderPath, ATTACHMENT_FILENAME)
+            
+            ' Check if attachment exists
+            If Not FileExists(attachmentPath) Then
+                MarkInvalid ws.Range(FOLDER_COLUMN & i), "Attachment file not found"
+                isValid = False
+                errorMsg = "Attachment file not found"
+            End If
+        End If
+        
+        ' Send email if everything is valid
+        If isValid Then
+            ' Update status bar
+            Application.StatusBar = "Sending email to " & emailAddress & " from folder " & folderPath & "..."
+            
+            ' Send email
+            sendResult = SendOutlookEmail(emailAddress, attachmentPath, sendError)
+            
+            ' Update counters
+            If sendResult Then
+                successCount = successCount + 1
+                MsgBox "Email sent successfully to " & emailAddress, vbInformation, "Success"
+            Else
+                failCount = failCount + 1
+                MsgBox "Failed to send email to " & emailAddress & vbCrLf & "Error: " & sendError, vbExclamation, "Error"
+                errorMsg = sendError
+            End If
+            
+            ' Log the result
+            With logWs
+                .Cells(nextLogRow, 1).Value = Now()
+                .Cells(nextLogRow, 2).Value = emailAddress
+                .Cells(nextLogRow, 3).Value = GetCCList(ws)
+                .Cells(nextLogRow, 4).Value = folderPath
+                .Cells(nextLogRow, 5).Value = attachmentPath
+                .Cells(nextLogRow, 6).Value = IIf(sendResult, "Sent Successfully", "Failed to Send")
+                .Cells(nextLogRow, 7).Value = IIf(sendResult, "", errorMsg)
+                nextLogRow = nextLogRow + 1
+            End With
+        Else
+            ' Log invalid entries
+            With logWs
+                .Cells(nextLogRow, 1).Value = Now()
+                .Cells(nextLogRow, 2).Value = emailAddress
+                .Cells(nextLogRow, 3).Value = ""
+                .Cells(nextLogRow, 4).Value = folderPath
+                .Cells(nextLogRow, 5).Value = IIf(folderPath <> "" And FolderExists(folderPath), BuildPath(folderPath, ATTACHMENT_FILENAME), "")
+                .Cells(nextLogRow, 6).Value = "Failed - Validation"
+                .Cells(nextLogRow, 7).Value = errorMsg
+                nextLogRow = nextLogRow + 1
+            End With
+            
+            failCount = failCount + 1
+        End If
+        
+NextRow:
+    Next i
+    
+    ' Clear status bar and update results
+    Application.StatusBar = False
+    UpdateResultsCell
+    
+    ' Format log sheet
+    logWs.Range("A:G").EntireColumn.AutoFit
+    
+    ' Activate log sheet
+    logWs.Activate
+    
+    ' Final message
+    MsgBox "Process completed." & vbCrLf & _
+           "Successful: " & successCount & vbCrLf & _
+           "Failed: " & failCount, vbInformation, "Email Process Complete"
+End Sub
+
+' Function to validate email using regular expression
+Function IsValidEmail(email As String) As Boolean
+    Dim regEx As Object
+    Dim regPattern As String
+    
+    ' Create RegExp object
+    Set regEx = CreateObject("VBScript.RegExp")
+    
+    ' Set pattern for email validation
+    regPattern = "^(([^<>()\[\]\\.,;:\s@""]+(\.[^<>()\[\]\\.,;:\s@""]+)*)|("".+""))@" & _
+                "((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$"
+    
+    With regEx
+        .Global = True
+        .MultiLine = True
+        .IgnoreCase = True
+        .Pattern = regPattern
+    End With
+    
+    ' Test the email against the pattern
+    IsValidEmail = regEx.Test(email)
+End Function
+
+' Function to check if folder exists
+Function FolderExists(folderPath As String) As Boolean
+    On Error Resume Next
+    FolderExists = (GetAttr(folderPath) And vbDirectory) = vbDirectory
+    On Error GoTo 0
+End Function
+
+' Function to check if file exists
+Function FileExists(filePath As String) As Boolean
+    On Error Resume Next
+    FileExists = (Dir(filePath) <> "")
+    On Error GoTo 0
+End Function
+
+' Procedure to mark invalid cells
+Sub MarkInvalid(cell As Range, errorText As String)
+    ' Highlight cell in red
+    cell.Interior.Color = RGB(255, 200, 200)
+    
+    ' Add comment
+    On Error Resume Next
+    If cell.Comment Is Nothing Then
+        cell.AddComment
+    End If
+    cell.Comment.Text Text:=errorText
+    cell.Comment.Shape.TextFrame.AutoSize = True
+    On Error GoTo 0
+End Sub
+
+' Function to build proper file path
+Function BuildPath(folderPath As String, fileName As String) As String
+    If Right(folderPath, 1) = "\" Then
+        BuildPath = folderPath & fileName
+    Else
+        BuildPath = folderPath & "\" & fileName
+    End If
+End Function
+
+' Function to send email using Outlook
+Function SendOutlookEmail(recipient As String, attachmentPath As String, ByRef errorMessage As String) As Boolean
+    Dim outlookApp As Object
+    Dim mailItem As Object
+    Dim ccList As String
+    
+    On Error GoTo ErrorHandler
+    
+    ' Initialize return value
+    SendOutlookEmail = False
+    
+    ' Create Outlook application object using late binding
+    Set outlookApp = CreateObject("Outlook.Application")
+    
+    ' Create a new mail item
+    Set mailItem = outlookApp.CreateItem(0) ' 0 = olMailItem
+    
+    ' Get CC list (all email addresses from column A)
+    ccList = GetCCList(ActiveSheet)
+    
+    ' Configure mail item
+    With mailItem
+        .To = recipient
+        .CC = ccList
+        .Subject = EMAIL_SUBJECT
+        .Body = EMAIL_BODY
+        
+        ' Add attachment if it exists
+        If FileExists(attachmentPath) Then
+            .Attachments.Add attachmentPath
+        Else
+            errorMessage = "Attachment file not found: " & attachmentPath
+            GoTo Cleanup
+        End If
+        
+        ' Send the email
+        .Send
+    End With
+    
+    ' Success
+    SendOutlookEmail = True
+    errorMessage = ""
+    
+Cleanup:
+    ' Clean up objects
+    Set mailItem = Nothing
+    Set outlookApp = Nothing
+    Exit Function
+    
+ErrorHandler:
+    ' Handle errors
+    errorMessage = "Error " & Err.Number & ": " & Err.Description
+    Resume Cleanup
+End Function
+
+' Function to get CC list from column A
+Function GetCCList(ws As Worksheet) As String
+    Dim i As Integer
+    Dim email As String
+    Dim ccList As String
+    
+    ccList = ""
+    
+    ' Loop through the email column
+    For i = START_ROW To END_ROW
+        email = Trim(ws.Range(EMAIL_COLUMN & i).Value)
+        
+        ' Only valid emails
+        If email <> "" And IsValidEmail(email) Then
+            If ccList = "" Then
+                ccList = email
+            Else
+                ccList = ccList & ";" & email
+            End If
+        End If
+    Next i
+    
+    GetCCList = ccList
+End Function
+
+' Procedure to update results cell
+Sub UpdateResultsCell()
+    ' Find or create results cell
+    Dim resultsCell As Range
+    Set resultsCell = ActiveSheet.Range("D1")
+    
+    ' Update the cell
+    resultsCell.Value = "Results: " & successCount & " sent successfully, " & failCount & " failed"
+    resultsCell.Font.Bold = True
+End Sub
+
+' Create the Send Emails button on the worksheet
+Sub CreateSendEmailsButton()
+    Dim btn As Button
+    Dim ws As Worksheet
+    
+    ' Use active sheet
+    Set ws = ActiveSheet
+    
+    ' Remove any existing buttons with the same name
+    On Error Resume Next
+    ws.Buttons("btnSendEmails").Delete
+    On Error GoTo 0
+    
+    ' Add the button
+    Set btn = ws.Buttons.Add(Left:=400, Top:=10, Width:=100, Height:=30)
+    
+    ' Configure the button
+    With btn
+        .OnAction = "SendEmails"
+        .Caption = "Send Emails"
+        .Name = "btnSendEmails"
+    End With
+    
+    ' Add results cell
+    ws.Range("D1").Value = "Results: 0 sent successfully, 0 failed"
+    ws.Range("D1").Font.Bold = True
+End Sub
+
+' Auto-run this when workbook opens
+Sub Workbook_Open()
+    CreateSendEmailsButton
+End Sub
