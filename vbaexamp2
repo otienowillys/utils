@@ -1,0 +1,445 @@
+Option Explicit
+
+' Constants
+Const EMAIL_SUBJECT As String = "Important Document for Review"
+Const START_ROW As Integer = 1
+Const END_ROW As Integer = 120
+Const EMAIL_COLUMN As String = "A"
+Const FOLDER_COLUMN As String = "B"
+Const LOG_SHEET_NAME As String = "EmailLog"
+
+' Global variables
+Dim successCount As Integer
+Dim failCount As Integer
+Dim processedEmails As Collection
+
+' Main procedure triggered by the button click
+Sub SendEmails()
+    ' Initialize variables
+    successCount = 0
+    failCount = 0
+    Set processedEmails = New Collection
+    
+    ' Declare other variables
+    Dim ws As Worksheet
+    Dim logWs As Worksheet
+    Dim i As Integer
+    Dim emailAddress As String
+    Dim sharePointPath As String
+    Dim isValid As Boolean
+    Dim errorMsg As String
+    Dim sendResult As Boolean
+    Dim sendError As String
+    Dim saveResult As Boolean
+    Dim saveError As String
+    
+    ' Set reference to active worksheet
+    Set ws = ActiveSheet
+    
+    ' Create or get log sheet
+    On Error Resume Next
+    Set logWs = ThisWorkbook.Sheets(LOG_SHEET_NAME)
+    On Error GoTo 0
+    
+    If logWs Is Nothing Then
+        ' Create log sheet if it doesn't exist
+        Set logWs = ThisWorkbook.Sheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+        logWs.Name = LOG_SHEET_NAME
+        
+        ' Create headers for log sheet
+        With logWs
+            .Cells(1, 1).Value = "Date/Time"
+            .Cells(1, 2).Value = "Recipient"
+            .Cells(1, 3).Value = "CC"
+            .Cells(1, 4).Value = "SharePoint Path"
+            .Cells(1, 5).Value = "Email Saved Path"
+            .Cells(1, 6).Value = "Status"
+            .Cells(1, 7).Value = "Error Message"
+            
+            ' Format headers
+            .Range("A1:G1").Font.Bold = True
+            .Range("A:A").NumberFormat = "yyyy-mm-dd hh:mm:ss"
+            .Range("A:G").EntireColumn.AutoFit
+        End With
+    End If
+    
+    ' Find the next empty row in the log sheet
+    Dim nextLogRow As Long
+    nextLogRow = logWs.Cells(logWs.Rows.Count, 1).End(xlUp).Row + 1
+    
+    ' Clear any previous formatting
+    ws.Range(EMAIL_COLUMN & START_ROW & ":" & FOLDER_COLUMN & END_ROW).Interior.ColorIndex = xlNone
+    ws.Range(EMAIL_COLUMN & START_ROW & ":" & FOLDER_COLUMN & END_ROW).ClearComments
+    
+    ' Loop through each row
+    For i = START_ROW To END_ROW
+        ' Reset for each row
+        isValid = True
+        errorMsg = ""
+        
+        ' Get email address and SharePoint path from cells
+        emailAddress = Trim(ws.Range(EMAIL_COLUMN & i).Value)
+        sharePointPath = Trim(ws.Range(FOLDER_COLUMN & i).Value)
+        
+        ' Skip empty rows
+        If emailAddress = "" And sharePointPath = "" Then
+            GoTo NextRow
+        End If
+        
+        ' Validate inputs
+        If emailAddress = "" Then
+            MarkInvalid ws.Range(EMAIL_COLUMN & i), "Email address is missing"
+            isValid = False
+            errorMsg = "Email address is missing"
+        ElseIf Not IsValidEmail(emailAddress) Then
+            MarkInvalid ws.Range(EMAIL_COLUMN & i), "Invalid email format"
+            isValid = False
+            errorMsg = "Invalid email format"
+        End If
+        
+        If sharePointPath = "" Then
+            MarkInvalid ws.Range(FOLDER_COLUMN & i), "SharePoint path is missing"
+            isValid = False
+            errorMsg = IIf(errorMsg = "", "SharePoint path is missing", errorMsg & "; SharePoint path is missing")
+        End If
+        
+        ' Check for duplicate email
+        If isValid Then
+            On Error Resume Next
+            Dim testDup As Variant
+            testDup = processedEmails(emailAddress)
+            If Err.Number = 0 Then
+                ' Email already processed
+                MarkInvalid ws.Range(EMAIL_COLUMN & i), "Duplicate email address"
+                isValid = False
+                errorMsg = "Duplicate email address"
+            Else
+                ' Add to processed collection
+                processedEmails.Add emailAddress, emailAddress
+            End If
+            On Error GoTo 0
+        End If
+        
+        ' Send email if everything is valid
+        If isValid Then
+            ' Update status bar
+            Application.StatusBar = "Sending email to " & emailAddress & " and saving a copy..."
+            
+            ' Create the email
+            Dim outlookApp As Object
+            Dim mailItem As Object
+            Dim savedEmailPath As String
+            Dim ccList As String
+            
+            ' Initialize error tracking
+            savedEmailPath = ""
+            sendError = ""
+            
+            ' Create Outlook objects
+            On Error Resume Next
+            Set outlookApp = CreateObject("Outlook.Application")
+            If Err.Number <> 0 Then
+                sendError = "Failed to create Outlook application: " & Err.Description
+                isValid = False
+                On Error GoTo 0
+            Else
+                On Error GoTo 0
+                
+                ' Create mail item
+                Set mailItem = outlookApp.CreateItem(0) ' 0 = olMailItem
+                
+                ' Get CC list
+                ccList = GetCCList(ws)
+                
+                ' Configure mail item
+                With mailItem
+                    .To = emailAddress
+                    .CC = ccList
+                    .Subject = EMAIL_SUBJECT
+                    .HTMLBody = CreateEmailBody(sharePointPath)
+                    
+                    ' Save a copy to SharePoint/shared drive before sending
+                    On Error Resume Next
+                    Dim saveDir As String
+                    saveDir = GetDirectoryFromPath(sharePointPath)
+                    
+                    ' Create clean filename based on recipient and date
+                    Dim emailFileName As String
+                    emailFileName = "Email_" & Replace(emailAddress, "@", "_at_") & "_" & Format(Now(), "yyyymmdd_hhmmss") & ".msg"
+                    
+                    ' Create full save path
+                    savedEmailPath = saveDir & "\" & emailFileName
+                    
+                    ' Make sure directory exists
+                    If FolderExists(saveDir) Then
+                        .SaveAs savedEmailPath, 3 ' 3 = olMSG format
+                        
+                        If Err.Number <> 0 Then
+                            saveError = "Failed to save email: " & Err.Description
+                            saveResult = False
+                        Else
+                            saveResult = True
+                        End If
+                    Else
+                        saveError = "Directory does not exist: " & saveDir
+                        saveResult = False
+                    End If
+                    On Error GoTo 0
+                    
+                    ' Send the email
+                    On Error Resume Next
+                    .Send
+                    If Err.Number <> 0 Then
+                        sendError = "Failed to send email: " & Err.Description
+                        sendResult = False
+                    Else
+                        sendResult = True
+                    End If
+                    On Error GoTo 0
+                End With
+                
+                ' Clean up objects
+                Set mailItem = Nothing
+                Set outlookApp = Nothing
+            End If
+            
+            ' Update counters
+            If sendResult Then
+                successCount = successCount + 1
+                MsgBox "Email sent successfully to " & emailAddress & IIf(saveResult, vbCrLf & "Copy saved to: " & savedEmailPath, vbCrLf & "Warning: Failed to save copy"), vbInformation, "Success"
+            Else
+                failCount = failCount + 1
+                MsgBox "Failed to send email to " & emailAddress & vbCrLf & "Error: " & sendError, vbExclamation, "Error"
+                errorMsg = sendError
+            End If
+            
+            ' Log the result
+            With logWs
+                .Cells(nextLogRow, 1).Value = Now()
+                .Cells(nextLogRow, 2).Value = emailAddress
+                .Cells(nextLogRow, 3).Value = ccList
+                .Cells(nextLogRow, 4).Value = sharePointPath
+                .Cells(nextLogRow, 5).Value = IIf(saveResult, savedEmailPath, "Not saved")
+                .Cells(nextLogRow, 6).Value = IIf(sendResult, "Sent Successfully", "Failed to Send")
+                .Cells(nextLogRow, 7).Value = IIf(sendResult, IIf(saveResult, "", "Failed to save email: " & saveError), errorMsg)
+                nextLogRow = nextLogRow + 1
+            End With
+        Else
+            ' Log invalid entries
+            With logWs
+                .Cells(nextLogRow, 1).Value = Now()
+                .Cells(nextLogRow, 2).Value = emailAddress
+                .Cells(nextLogRow, 3).Value = ""
+                .Cells(nextLogRow, 4).Value = sharePointPath
+                .Cells(nextLogRow, 5).Value = "Not saved"
+                .Cells(nextLogRow, 6).Value = "Failed - Validation"
+                .Cells(nextLogRow, 7).Value = errorMsg
+                nextLogRow = nextLogRow + 1
+            End With
+            
+            failCount = failCount + 1
+        End If
+        
+NextRow:
+    Next i
+    
+    ' Clear status bar and update results
+    Application.StatusBar = False
+    UpdateResultsCell
+    
+    ' Format log sheet
+    logWs.Range("A:G").EntireColumn.AutoFit
+    
+    ' Activate log sheet
+    logWs.Activate
+    
+    ' Final message
+    MsgBox "Process completed." & vbCrLf & _
+           "Successful: " & successCount & vbCrLf & _
+           "Failed: " & failCount, vbInformation, "Email Process Complete"
+End Sub
+
+' Function to validate email using regular expression
+Function IsValidEmail(email As String) As Boolean
+    Dim regEx As Object
+    Dim regPattern As String
+    
+    ' Create RegExp object
+    Set regEx = CreateObject("VBScript.RegExp")
+    
+    ' Set pattern for email validation
+    regPattern = "^(([^<>()\[\]\\.,;:\s@""]+(\.[^<>()\[\]\\.,;:\s@""]+)*)|("".+""))@" & _
+                "((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$"
+    
+    With regEx
+        .Global = True
+        .MultiLine = True
+        .IgnoreCase = True
+        .Pattern = regPattern
+    End With
+    
+    ' Test the email against the pattern
+    IsValidEmail = regEx.Test(email)
+End Function
+
+' Function to check if folder exists
+Function FolderExists(folderPath As String) As Boolean
+    On Error Resume Next
+    FolderExists = (GetAttr(folderPath) And vbDirectory) = vbDirectory
+    On Error GoTo 0
+End Function
+
+' Function to extract directory path from a full path
+Function GetDirectoryFromPath(fullPath As String) As String
+    Dim lastSlashPos As Long
+    
+    ' Find the last backslash in the path
+    lastSlashPos = InStrRev(fullPath, "\")
+    
+    ' If no backslash found, return the original path
+    If lastSlashPos = 0 Then
+        GetDirectoryFromPath = fullPath
+    Else
+        GetDirectoryFromPath = Left(fullPath, lastSlashPos - 1)
+    End If
+End Function
+
+' Procedure to mark invalid cells
+Sub MarkInvalid(cell As Range, errorText As String)
+    ' Highlight cell in red
+    cell.Interior.Color = RGB(255, 200, 200)
+    
+    ' Add comment
+    On Error Resume Next
+    If cell.Comment Is Nothing Then
+        cell.AddComment
+    End If
+    cell.Comment.Text Text:=errorText
+    cell.Comment.Shape.TextFrame.AutoSize = True
+    On Error GoTo 0
+End Sub
+
+' Function to create beautiful HTML email body
+Function CreateEmailBody(sharePointPath As String) As String
+    Dim htmlBody As String
+    Dim currentDate As String
+    
+    ' Format current date
+    currentDate = Format(Now(), "mmmm d, yyyy")
+    
+    ' Create an appealing HTML email body
+    htmlBody = "<html>" & _
+               "<head>" & _
+               "<style>" & _
+               "body { font-family: Arial, sans-serif; line-height: 1.6; color: #333333; }" & _
+               ".container { max-width: 600px; margin: 0 auto; padding: 20px; }" & _
+               ".header { background-color: #4472C4; color: white; padding: 10px 20px; text-align: center; }" & _
+               ".content { padding: 20px; background-color: #f9f9f9; }" & _
+               ".footer { font-size: 12px; text-align: center; margin-top: 20px; color: #777777; }" & _
+               ".sharepoint-link { background-color: #f0f0f0; padding: 15px; margin: 15px 0; border-left: 4px solid #4472C4; }" & _
+               "h1 { color: white; margin: 0; }" & _
+               "h2 { color: #4472C4; }" & _
+               ".highlight { color: #4472C4; font-weight: bold; }" & _
+               ".button { display: inline-block; background-color: #4472C4; color: white; padding: 10px 20px; " & _
+               "text-decoration: none; border-radius: 5px; margin-top: 15px; }" & _
+               "</style>" & _
+               "</head>" & _
+               "<body>" & _
+               "<div class='container'>" & _
+               "<div class='header'>" & _
+               "<h1>Document Review Request</h1>" & _
+               "</div>" & _
+               "<div class='content'>" & _
+               "<p>Dear Colleague,</p>" & _
+               "<p>You have been requested to review an important document that has been saved to our SharePoint repository.</p>" & _
+               "<h2>Document Location</h2>" & _
+               "<div class='sharepoint-link'>" & _
+               "<p>Please access and review the document at the following location:</p>" & _
+               "<p class='highlight'>" & sharePointPath & "</p>" & _
+               "</div>" & _
+               "<p>Your feedback on this document is valuable to us. Please review it at your earliest convenience " & _
+               "and provide any comments or suggestions directly in the document or reply to this email.</p>" & _
+               "<p><a href='" & sharePointPath & "' class='button'>Access Document</a></p>" & _
+               "<p>If you have any questions or are unable to access the document, please contact the sender.</p>" & _
+               "<p>Thank you for your assistance.</p>" & _
+               "<p>Best regards,<br>Document Management Team</p>" & _
+               "</div>" & _
+               "<div class='footer'>" & _
+               "<p>This email was sent on " & currentDate & ".<br>" & _
+               "A copy of this email has been saved to the SharePoint location.</p>" & _
+               "</div>" & _
+               "</div>" & _
+               "</body>" & _
+               "</html>"
+    
+    CreateEmailBody = htmlBody
+End Function
+
+' Function to get CC list from column A
+Function GetCCList(ws As Worksheet) As String
+    Dim i As Integer
+    Dim email As String
+    Dim ccList As String
+    
+    ccList = ""
+    
+    ' Loop through the email column
+    For i = START_ROW To END_ROW
+        email = Trim(ws.Range(EMAIL_COLUMN & i).Value)
+        
+        ' Only valid emails
+        If email <> "" And IsValidEmail(email) Then
+            If ccList = "" Then
+                ccList = email
+            Else
+                ccList = ccList & ";" & email
+            End If
+        End If
+    Next i
+    
+    GetCCList = ccList
+End Function
+
+' Procedure to update results cell
+Sub UpdateResultsCell()
+    ' Find or create results cell
+    Dim resultsCell As Range
+    Set resultsCell = ActiveSheet.Range("D1")
+    
+    ' Update the cell
+    resultsCell.Value = "Results: " & successCount & " sent successfully, " & failCount & " failed"
+    resultsCell.Font.Bold = True
+End Sub
+
+' Create the Send Emails button on the worksheet
+Sub CreateSendEmailsButton()
+    Dim btn As Button
+    Dim ws As Worksheet
+    
+    ' Use active sheet
+    Set ws = ActiveSheet
+    
+    ' Remove any existing buttons with the same name
+    On Error Resume Next
+    ws.Buttons("btnSendEmails").Delete
+    On Error GoTo 0
+    
+    ' Add the button
+    Set btn = ws.Buttons.Add(Left:=400, Top:=10, Width:=100, Height:=30)
+    
+    ' Configure the button
+    With btn
+        .OnAction = "SendEmails"
+        .Caption = "Send Emails"
+        .Name = "btnSendEmails"
+    End With
+    
+    ' Add results cell
+    ws.Range("D1").Value = "Results: 0 sent successfully, 0 failed"
+    ws.Range("D1").Font.Bold = True
+End Sub
+
+' Auto-run this when workbook opens
+Sub Workbook_Open()
+    CreateSendEmailsButton
+End Sub
