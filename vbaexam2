@@ -1,0 +1,393 @@
+Option Explicit
+
+' Constants
+Const EMAIL_SUBJECT As String = "Important Notification"
+Const START_ROW As Integer = 1
+Const END_ROW As Integer = 120
+Const EMAIL_COLUMN As String = "A"
+Const FOLDER_COLUMN As String = "B"
+Const LOG_SHEET_NAME As String = "EmailLog"
+
+' Global variables
+Dim successCount As Integer
+Dim failCount As Integer
+Dim processedEmails As Collection
+
+' Main procedure triggered by the button click
+Sub SendEmails()
+    ' Initialize variables
+    successCount = 0
+    failCount = 0
+    Set processedEmails = New Collection
+    
+    ' Declare other variables
+    Dim ws As Worksheet
+    Dim logWs As Worksheet
+    Dim i As Integer
+    Dim emailAddress As String
+    Dim folderName As String
+    Dim isValid As Boolean
+    Dim errorMsg As String
+    Dim sendResult As Boolean
+    Dim sendError As String
+    
+    ' Set reference to active worksheet
+    Set ws = ActiveSheet
+    
+    ' Create or get log sheet
+    On Error Resume Next
+    Set logWs = ThisWorkbook.Sheets(LOG_SHEET_NAME)
+    On Error GoTo 0
+    
+    If logWs Is Nothing Then
+        ' Create log sheet if it doesn't exist
+        Set logWs = ThisWorkbook.Sheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+        logWs.Name = LOG_SHEET_NAME
+        
+        ' Create headers for log sheet
+        With logWs
+            .Cells(1, 1).Value = "Date/Time"
+            .Cells(1, 2).Value = "Recipient"
+            .Cells(1, 3).Value = "CC"
+            .Cells(1, 4).Value = "Folder Name"
+            .Cells(1, 5).Value = "Status"
+            .Cells(1, 6).Value = "Error Message"
+            
+            ' Format headers
+            .Range("A1:F1").Font.Bold = True
+            .Range("A:A").NumberFormat = "yyyy-mm-dd hh:mm:ss"
+            .Range("A:F").EntireColumn.AutoFit
+        End With
+    End If
+    
+    ' Find the next empty row in the log sheet
+    Dim nextLogRow As Long
+    nextLogRow = logWs.Cells(logWs.Rows.Count, 1).End(xlUp).Row + 1
+    
+    ' Clear any previous formatting
+    ws.Range(EMAIL_COLUMN & START_ROW & ":" & FOLDER_COLUMN & END_ROW).Interior.ColorIndex = xlNone
+    ws.Range(EMAIL_COLUMN & START_ROW & ":" & FOLDER_COLUMN & END_ROW).ClearComments
+    
+    ' Loop through each row
+    For i = START_ROW To END_ROW
+        ' Reset for each row
+        isValid = True
+        errorMsg = ""
+        
+        ' Get email address and folder name from cells
+        emailAddress = Trim(ws.Range(EMAIL_COLUMN & i).Value)
+        folderName = Trim(ws.Range(FOLDER_COLUMN & i).Value)
+        
+        ' Skip empty rows
+        If emailAddress = "" And folderName = "" Then
+            GoTo NextRow
+        End If
+        
+        ' Validate inputs
+        If emailAddress = "" Then
+            MarkInvalid ws.Range(EMAIL_COLUMN & i), "Email address is missing"
+            isValid = False
+            errorMsg = "Email address is missing"
+        ElseIf Not IsValidEmail(emailAddress) Then
+            MarkInvalid ws.Range(EMAIL_COLUMN & i), "Invalid email format"
+            isValid = False
+            errorMsg = "Invalid email format"
+        End If
+        
+        If folderName = "" Then
+            MarkInvalid ws.Range(FOLDER_COLUMN & i), "Folder name is missing"
+            isValid = False
+            errorMsg = IIf(errorMsg = "", "Folder name is missing", errorMsg & "; Folder name is missing")
+        End If
+        
+        ' Check for duplicate email
+        If isValid Then
+            On Error Resume Next
+            Dim testDup As Variant
+            testDup = processedEmails(emailAddress)
+            If Err.Number = 0 Then
+                ' Email already processed
+                MarkInvalid ws.Range(EMAIL_COLUMN & i), "Duplicate email address"
+                isValid = False
+                errorMsg = "Duplicate email address"
+            Else
+                ' Add to processed collection
+                processedEmails.Add emailAddress, emailAddress
+            End If
+            On Error GoTo 0
+        End If
+        
+        ' Send email if everything is valid
+        If isValid Then
+            ' Update status bar
+            Application.StatusBar = "Sending email to " & emailAddress & "..."
+            
+            ' Send email
+            sendResult = SendOutlookEmail(emailAddress, folderName, sendError)
+            
+            ' Update counters
+            If sendResult Then
+                successCount = successCount + 1
+                MsgBox "Email sent successfully to " & emailAddress, vbInformation, "Success"
+            Else
+                failCount = failCount + 1
+                MsgBox "Failed to send email to " & emailAddress & vbCrLf & "Error: " & sendError, vbExclamation, "Error"
+                errorMsg = sendError
+            End If
+            
+            ' Log the result
+            With logWs
+                .Cells(nextLogRow, 1).Value = Now()
+                .Cells(nextLogRow, 2).Value = emailAddress
+                .Cells(nextLogRow, 3).Value = GetCCList(ws)
+                .Cells(nextLogRow, 4).Value = folderName
+                .Cells(nextLogRow, 5).Value = IIf(sendResult, "Sent Successfully", "Failed to Send")
+                .Cells(nextLogRow, 6).Value = IIf(sendResult, "", errorMsg)
+                nextLogRow = nextLogRow + 1
+            End With
+        Else
+            ' Log invalid entries
+            With logWs
+                .Cells(nextLogRow, 1).Value = Now()
+                .Cells(nextLogRow, 2).Value = emailAddress
+                .Cells(nextLogRow, 3).Value = ""
+                .Cells(nextLogRow, 4).Value = folderName
+                .Cells(nextLogRow, 5).Value = "Failed - Validation"
+                .Cells(nextLogRow, 6).Value = errorMsg
+                nextLogRow = nextLogRow + 1
+            End With
+            
+            failCount = failCount + 1
+        End If
+        
+NextRow:
+    Next i
+    
+    ' Clear status bar and update results
+    Application.StatusBar = False
+    UpdateResultsCell
+    
+    ' Format log sheet
+    logWs.Range("A:F").EntireColumn.AutoFit
+    
+    ' Activate log sheet
+    logWs.Activate
+    
+    ' Final message
+    MsgBox "Process completed." & vbCrLf & _
+           "Successful: " & successCount & vbCrLf & _
+           "Failed: " & failCount, vbInformation, "Email Process Complete"
+End Sub
+
+' Function to validate email using regular expression
+Function IsValidEmail(email As String) As Boolean
+    Dim regEx As Object
+    Dim regPattern As String
+    
+    ' Create RegExp object
+    Set regEx = CreateObject("VBScript.RegExp")
+    
+    ' Set pattern for email validation
+    regPattern = "^(([^<>()\[\]\\.,;:\s@""]+(\.[^<>()\[\]\\.,;:\s@""]+)*)|("".+""))@" & _
+                "((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$"
+    
+    With regEx
+        .Global = True
+        .MultiLine = True
+        .IgnoreCase = True
+        .Pattern = regPattern
+    End With
+    
+    ' Test the email against the pattern
+    IsValidEmail = regEx.Test(email)
+End Function
+
+' Procedure to mark invalid cells
+Sub MarkInvalid(cell As Range, errorText As String)
+    ' Highlight cell in red
+    cell.Interior.Color = RGB(255, 200, 200)
+    
+    ' Add comment
+    On Error Resume Next
+    If cell.Comment Is Nothing Then
+        cell.AddComment
+    End If
+    cell.Comment.Text Text:=errorText
+    cell.Comment.Shape.TextFrame.AutoSize = True
+    On Error GoTo 0
+End Sub
+
+' Function to create beautiful HTML email body
+Function CreateEmailBody(folderName As String) As String
+    Dim htmlBody As String
+    Dim currentDate As String
+    
+    ' Format current date
+    currentDate = Format(Now(), "mmmm d, yyyy")
+    
+    ' Create an appealing HTML email body
+    htmlBody = "<html>" & _
+               "<head>" & _
+               "<style>" & _
+               "body { font-family: Arial, sans-serif; line-height: 1.6; color: #333333; }" & _
+               ".container { max-width: 600px; margin: 0 auto; padding: 20px; }" & _
+               ".header { background-color: #4472C4; color: white; padding: 10px 20px; text-align: center; }" & _
+               ".content { padding: 20px; background-color: #f9f9f9; }" & _
+               ".footer { font-size: 12px; text-align: center; margin-top: 20px; color: #777777; }" & _
+               "h1 { color: white; margin: 0; }" & _
+               "h2 { color: #4472C4; }" & _
+               ".highlight { color: #4472C4; font-weight: bold; }" & _
+               ".button { display: inline-block; background-color: #4472C4; color: white; padding: 10px 20px; " & _
+               "text-decoration: none; border-radius: 5px; margin-top: 15px; }" & _
+               "</style>" & _
+               "</head>" & _
+               "<body>" & _
+               "<div class='container'>" & _
+               "<div class='header'>" & _
+               "<h1>Important Notification</h1>" & _
+               "</div>" & _
+               "<div class='content'>" & _
+               "<p>Dear Valued Customer,</p>" & _
+               "<p>We hope this email finds you well. We are reaching out to provide you with important " & _
+               "information regarding your <span class='highlight'>" & folderName & "</span> project.</p>" & _
+               "<h2>Key Information</h2>" & _
+               "<p>Our team has reviewed your recent submissions and we're pleased to inform you that " & _
+               "everything is progressing according to schedule. Your project has been assigned to our " & _
+               "dedicated team members who will ensure its successful completion.</p>" & _
+               "<p>As always, we are committed to providing you with the highest level of service and " & _
+               "support. Should you have any questions or require further assistance, please do not " & _
+               "hesitate to contact your account manager.</p>" & _
+               "<p><a href='#' class='button'>View Project Details</a></p>" & _
+               "<p>Thank you for your continued trust and partnership.</p>" & _
+               "<p>Best regards,<br>Your Support Team</p>" & _
+               "</div>" & _
+               "<div class='footer'>" & _
+               "<p>This email was sent on " & currentDate & ".<br>" & _
+               "Please do not reply to this automated message.</p>" & _
+               "</div>" & _
+               "</div>" & _
+               "</body>" & _
+               "</html>"
+    
+    CreateEmailBody = htmlBody
+End Function
+
+' Function to send email using Outlook
+Function SendOutlookEmail(recipient As String, folderName As String, ByRef errorMessage As String) As Boolean
+    Dim outlookApp As Object
+    Dim mailItem As Object
+    Dim ccList As String
+    Dim htmlBody As String
+    
+    On Error GoTo ErrorHandler
+    
+    ' Initialize return value
+    SendOutlookEmail = False
+    
+    ' Create Outlook application object using late binding
+    Set outlookApp = CreateObject("Outlook.Application")
+    
+    ' Create a new mail item
+    Set mailItem = outlookApp.CreateItem(0) ' 0 = olMailItem
+    
+    ' Get CC list (all email addresses from column A)
+    ccList = GetCCList(ActiveSheet)
+    
+    ' Get HTML body
+    htmlBody = CreateEmailBody(folderName)
+    
+    ' Configure mail item
+    With mailItem
+        .To = recipient
+        .CC = ccList
+        .Subject = EMAIL_SUBJECT
+        .HTMLBody = htmlBody
+        
+        ' Send the email
+        .Send
+    End With
+    
+    ' Success
+    SendOutlookEmail = True
+    errorMessage = ""
+    
+Cleanup:
+    ' Clean up objects
+    Set mailItem = Nothing
+    Set outlookApp = Nothing
+    Exit Function
+    
+ErrorHandler:
+    ' Handle errors
+    errorMessage = "Error " & Err.Number & ": " & Err.Description
+    Resume Cleanup
+End Function
+
+' Function to get CC list from column A
+Function GetCCList(ws As Worksheet) As String
+    Dim i As Integer
+    Dim email As String
+    Dim ccList As String
+    
+    ccList = ""
+    
+    ' Loop through the email column
+    For i = START_ROW To END_ROW
+        email = Trim(ws.Range(EMAIL_COLUMN & i).Value)
+        
+        ' Only valid emails
+        If email <> "" And IsValidEmail(email) Then
+            If ccList = "" Then
+                ccList = email
+            Else
+                ccList = ccList & ";" & email
+            End If
+        End If
+    Next i
+    
+    GetCCList = ccList
+End Function
+
+' Procedure to update results cell
+Sub UpdateResultsCell()
+    ' Find or create results cell
+    Dim resultsCell As Range
+    Set resultsCell = ActiveSheet.Range("D1")
+    
+    ' Update the cell
+    resultsCell.Value = "Results: " & successCount & " sent successfully, " & failCount & " failed"
+    resultsCell.Font.Bold = True
+End Sub
+
+' Create the Send Emails button on the worksheet
+Sub CreateSendEmailsButton()
+    Dim btn As Button
+    Dim ws As Worksheet
+    
+    ' Use active sheet
+    Set ws = ActiveSheet
+    
+    ' Remove any existing buttons with the same name
+    On Error Resume Next
+    ws.Buttons("btnSendEmails").Delete
+    On Error GoTo 0
+    
+    ' Add the button
+    Set btn = ws.Buttons.Add(Left:=400, Top:=10, Width:=100, Height:=30)
+    
+    ' Configure the button
+    With btn
+        .OnAction = "SendEmails"
+        .Caption = "Send Emails"
+        .Name = "btnSendEmails"
+    End With
+    
+    ' Add results cell
+    ws.Range("D1").Value = "Results: 0 sent successfully, 0 failed"
+    ws.Range("D1").Font.Bold = True
+End Sub
+
+' Auto-run this when workbook opens
+Sub Workbook_Open()
+    CreateSendEmailsButton
+End Sub
