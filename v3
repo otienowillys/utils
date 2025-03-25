@@ -1,0 +1,209 @@
+Option Explicit
+
+Sub SendAllEmails()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+    
+    Dim lastRow As Long: lastRow = 120
+    Dim emailCell As Range, folderCell As Range
+    Dim emailAddress As String, folderPath As String
+    Dim attachmentPath As String
+    Dim sentCount As Long, failedCount As Long
+    Dim logSheet As Worksheet
+    Dim mailApp As Object
+    Dim mailItem As Object
+    Dim i As Long
+    Dim isValid As Boolean
+    Dim emailDict As Object
+    Set emailDict = CreateObject("Scripting.Dictionary")
+    
+    ' Clear previous highlights
+    ws.Range("A1:B120").Interior.ColorIndex = xlNone
+    ws.Range("A1:B120").ClearComments
+
+    ' Create EmailLog sheet or clear it
+    On Error Resume Next
+    Set logSheet = ThisWorkbook.Sheets("EmailLog")
+    If logSheet Is Nothing Then
+        Set logSheet = ThisWorkbook.Sheets.Add
+        logSheet.Name = "EmailLog"
+    Else
+        logSheet.Cells.Clear
+    End If
+    On Error GoTo 0
+
+    ' Setup log headers
+    With logSheet
+        .Range("A1:F1").Value = Array("DateTime", "Recipient", "CC List", "Folder Path", "Status", "Attachment Path")
+        .Rows(1).Font.Bold = True
+    End With
+
+    On Error Resume Next
+    Set mailApp = GetObject(, "Outlook.Application")
+    If mailApp Is Nothing Then
+        Set mailApp = CreateObject("Outlook.Application")
+    End If
+    On Error GoTo 0
+
+    If mailApp Is Nothing Then
+        MsgBox "Outlook is not available. Please open Outlook and try again.", vbCritical
+        Exit Sub
+    End If
+
+    For i = 1 To lastRow
+        Set emailCell = ws.Cells(i, 1)
+        Set folderCell = ws.Cells(i, 2)
+        emailAddress = Trim(emailCell.Value)
+        folderPath = Trim(folderCell.Value)
+        isValid = True
+
+        ' Check blank cells
+        If emailAddress = "" Then
+            emailCell.Interior.Color = vbRed
+            emailCell.AddComment "Email address is blank."
+            isValid = False
+        End If
+        
+        If folderPath = "" Then
+            folderCell.Interior.Color = vbRed
+            folderCell.AddComment "Folder path is blank."
+            isValid = False
+        End If
+
+        ' Check email format
+        If Not IsValidEmail(emailAddress) Then
+            emailCell.Interior.Color = vbRed
+            emailCell.AddComment "Invalid email format."
+            isValid = False
+        End If
+
+        ' Check folder existence
+        If Dir(folderPath, vbDirectory) = "" Then
+            folderCell.Interior.Color = vbRed
+            folderCell.AddComment "Folder path not found."
+            isValid = False
+        End If
+
+        ' Skip if not valid or already sent
+        If Not isValid Or emailDict.exists(emailAddress) Then
+            If emailDict.exists(emailAddress) Then
+                emailCell.Interior.Color = vbYellow
+                emailCell.AddComment "Duplicate email skipped."
+            End If
+            GoTo LogResult
+        End If
+        
+        ' Prepare attachment path
+        attachmentPath = folderPath & Application.PathSeparator & "document.pdf"
+        If Dir(attachmentPath) = "" Then
+            folderCell.Interior.Color = vbRed
+            folderCell.AddComment "document.pdf not found in folder."
+            isValid = False
+        End If
+
+        If Not isValid Then GoTo LogResult
+        
+        ' Send Email
+        On Error GoTo SendError
+        Set mailItem = mailApp.CreateItem(0)
+        With mailItem
+            .To = emailAddress
+            .CC = Join(GetAllEmails(ws, lastRow, emailAddress), ";")
+            .Subject = "Important Notification"
+            .Body = "Please find the attached document."
+            .Attachments.Add attachmentPath
+            .Send
+        End With
+        
+        Application.StatusBar = "Sending email to " & emailAddress & " from folder " & folderPath & "..."
+        MsgBox "Email sent to " & emailAddress, vbInformation
+        emailDict.Add emailAddress, True
+        sentCount = sentCount + 1
+        LogResult "Sent Successfully", ""
+
+        GoTo NextRow
+
+SendError:
+        failedCount = failedCount + 1
+        MsgBox "Failed to send email to " & emailAddress & vbCrLf & Err.Description, vbExclamation
+        LogResult "Failed to Send", Err.Description
+        Resume NextRow
+
+LogResult:
+        If Not isValid Then
+            failedCount = failedCount + 1
+            LogResult "Invalid Input", "Validation failed."
+        End If
+
+NextRow:
+    Next i
+
+    Application.StatusBar = False
+    ws.Range("D1").Value = "Emails Sent Successfully:"
+    ws.Range("E1").Value = sentCount
+    ws.Range("D2").Value = "Emails Failed:"
+    ws.Range("E2").Value = failedCount
+    MsgBox "Email sending complete!" & vbCrLf & _
+           "Sent: " & sentCount & vbCrLf & "Failed: " & failedCount, vbInformation
+End Sub
+
+' Helper to validate email format
+Function IsValidEmail(email As String) As Boolean
+    Dim regex As Object
+    Set regex = CreateObject("VBScript.RegExp")
+    regex.Pattern = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
+    regex.IgnoreCase = True
+    regex.Global = False
+    IsValidEmail = regex.Test(email)
+End Function
+
+' Get all other emails for CC except the primary one
+Function GetAllEmails(ws As Worksheet, lastRow As Long, excludeEmail As String) As Collection
+    Dim i As Long
+    Dim ccList As New Collection
+    Dim val As String
+    For i = 1 To lastRow
+        val = Trim(ws.Cells(i, 1).Value)
+        If val <> "" And val <> excludeEmail Then
+            If Not CollectionContains(ccList, val) Then
+                ccList.Add val
+            End If
+        End If
+    Next i
+    Set GetAllEmails = ccList
+End Function
+
+Function CollectionContains(col As Collection, val As String) As Boolean
+    Dim item As Variant
+    For Each item In col
+        If item = val Then
+            CollectionContains = True
+            Exit Function
+        End If
+    Next
+    CollectionContains = False
+End Function
+
+' Logs each email result
+Sub LogResult(status As String, Optional errMsg As String = "")
+    Dim logSheet As Worksheet
+    Set logSheet = ThisWorkbook.Sheets("EmailLog")
+    
+    Dim nextRow As Long
+    nextRow = logSheet.Cells(logSheet.Rows.Count, 1).End(xlUp).Row + 1
+    
+    With logSheet
+        .Cells(nextRow, 1).Value = Now
+        .Cells(nextRow, 2).Value = emailCell.Value
+        .Cells(nextRow, 3).Value = Join(GetAllEmails(ThisWorkbook.Sheets(1), 120, emailCell.Value), ";")
+        .Cells(nextRow, 4).Value = folderCell.Value
+        .Cells(nextRow, 5).Value = status
+        .Cells(nextRow, 6).Value = folderCell.Value & Application.PathSeparator & "document.pdf"
+        
+        If status = "Failed to Send" Or status = "Invalid Input" Then
+            .Cells(nextRow, 5).Interior.Color = vbRed
+        Else
+            .Cells(nextRow, 5).Interior.Color = vbGreen
+        End If
+    End With
+End Sub
