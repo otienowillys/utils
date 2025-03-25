@@ -1,0 +1,9 @@
+filename myfile url "https://company.sharepoint.com/sites/TeamDocs/Shared%20Documents/mydata.xlsx?download=1"
+    debug headerout=headers;
+
+proc import datafile=myfile
+    out=work.mydata
+    dbms=xlsx
+    replace;
+    getnames=yes;
+run;
