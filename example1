@@ -7,3 +7,19 @@ proc import datafile=myfile
     replace;
     getnames=yes;
 run;
+
+
+filename outtemp "C:\Temp\mydata.xlsx";
+
+proc http
+    url="https://yourcompany.sharepoint.com/sites/YourSite/Shared%20Documents/mydata.xlsx?download=1"
+    method="GET"
+    out=outtemp;
+run;
+
+proc import datafile="C:\Temp\mydata.xlsx"
+    out=work.mydata
+    dbms=xlsx
+    replace;
+    getnames=yes;
+run;
