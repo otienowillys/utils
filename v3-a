@@ -1,0 +1,175 @@
+Option Explicit
+
+Sub SendEmailsWithAttachment()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(1)
+    
+    Dim logSheet As Worksheet
+    Dim lastRow As Long: lastRow = 120
+    Dim i As Long
+    Dim emailCell As Range, folderCell As Range
+    Dim emailAddress As String, folderPath As String, attachmentPath As String
+    Dim sentCount As Long, failedCount As Long
+    Dim mailApp As Object, mailItem As Object
+    Dim statusMessage As String
+    Dim emailDict As Object: Set emailDict = CreateObject("Scripting.Dictionary")
+    Dim nowTime As String: nowTime = Format(Now, "yyyy-mm-dd hh:nn:ss")
+    
+    ' Clear prior comments and highlights
+    ws.Range("A1:B120").Interior.ColorIndex = xlNone
+    ws.Range("A1:B120").ClearComments
+
+    ' Initialize or clear EmailLog sheet
+    On Error Resume Next
+    Set logSheet = ThisWorkbook.Sheets("EmailLog")
+    If logSheet Is Nothing Then
+        Set logSheet = ThisWorkbook.Sheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+        logSheet.Name = "EmailLog"
+    Else
+        logSheet.Cells.Clear
+    End If
+    On Error GoTo 0
+
+    ' Format EmailLog header
+    With logSheet
+        .Range("A1:G1").Value = Array("DateTime", "Recipient", "CC List", "Folder Path", "Status", "Error Message", "Attachment Path")
+        .Rows(1).Font.Bold = True
+    End With
+
+    ' Open Outlook late bound
+    On Error Resume Next
+    Set mailApp = GetObject(, "Outlook.Application")
+    If mailApp Is Nothing Then Set mailApp = CreateObject("Outlook.Application")
+    On Error GoTo 0
+
+    If mailApp Is Nothing Then
+        MsgBox "Outlook is not available. Please open Outlook and try again.", vbCritical
+        Exit Sub
+    End If
+
+    For i = 1 To lastRow
+        Set emailCell = ws.Cells(i, 1)
+        Set folderCell = ws.Cells(i, 2)
+        
+        emailAddress = Trim(emailCell.Value)
+        folderPath = Trim(folderCell.Value)
+        attachmentPath = folderPath & Application.PathSeparator & "document.pdf"
+        
+        Dim isValid As Boolean: isValid = True
+        Dim errorMsg As String: errorMsg = ""
+
+        ' --- VALIDATION SECTION ---
+        If emailAddress = "" Then
+            emailCell.Interior.Color = vbRed
+            emailCell.AddComment "Email is blank."
+            isValid = False
+        ElseIf Not IsValidEmail(emailAddress) Then
+            emailCell.Interior.Color = vbRed
+            emailCell.AddComment "Invalid email format."
+            isValid = False
+        End If
+
+        If folderPath = "" Then
+            folderCell.Interior.Color = vbRed
+            folderCell.AddComment "Folder path is blank."
+            isValid = False
+        ElseIf Dir(folderPath, vbDirectory) = "" Then
+            folderCell.Interior.Color = vbRed
+            folderCell.AddComment "Folder does not exist."
+            isValid = False
+        End If
+
+        If Dir(attachmentPath) = "" Then
+            folderCell.Interior.Color = vbRed
+            folderCell.AddComment "document.pdf not found in folder."
+            isValid = False
+        End If
+
+        If emailDict.exists(emailAddress) Then
+            emailCell.Interior.Color = vbYellow
+            emailCell.AddComment "Duplicate email skipped."
+            isValid = False
+        End If
+
+        ' --- SEND EMAIL IF VALID ---
+        If isValid Then
+            On Error GoTo EmailError
+            Application.StatusBar = "Sending email to " & emailAddress & " from folder: " & folderPath & "..."
+            Set mailItem = mailApp.CreateItem(0)
+
+            With mailItem
+                .To = emailAddress
+                .CC = Join(GetAllOtherEmails(ws, lastRow, emailAddress), ";")
+                .Subject = "Important Notification"
+                .HTMLBody = "<p>Dear Recipient,</p>" & _
+                            "<p>Please find the attached document for your review.</p>" & _
+                            "<p><strong><a href='file:///" & Replace(attachmentPath, "\", "/") & "'>Click here to view the document</a></strong></p>" & _
+                            "<p>Best regards,<br>Your Team</p>"
+                .Attachments.Add attachmentPath
+                .Send
+            End With
+
+            MsgBox "Email sent to: " & emailAddress, vbInformation
+            sentCount = sentCount + 1
+            emailDict.Add emailAddress, True
+            statusMessage = "Sent Successfully"
+            errorMsg = ""
+            GoTo LogEntry
+
+EmailError:
+            failedCount = failedCount + 1
+            statusMessage = "Failed to Send"
+            errorMsg = Err.Description
+            MsgBox "Failed to send to " & emailAddress & vbCrLf & Err.Description, vbExclamation
+            Resume LogEntry
+        Else
+            failedCount = failedCount + 1
+            statusMessage = "Invalid Input"
+            errorMsg = "Validation failed"
+        End If
+
+LogEntry:
+        With logSheet
+            Dim logRow As Long
+            logRow = .Cells(.Rows.Count, 1).End(xlUp).Row + 1
+            .Cells(logRow, 1).Value = nowTime
+            .Cells(logRow, 2).Value = emailAddress
+            .Cells(logRow, 3).Value = Join(GetAllOtherEmails(ws, lastRow, emailAddress), ";")
+            .Cells(logRow, 4).Value = folderPath
+            .Cells(logRow, 5).Value = statusMessage
+            .Cells(logRow, 6).Value = errorMsg
+            .Cells(logRow, 7).Value = attachmentPath
+        End With
+    Next i
+
+    ' Display Results
+    ws.Range("D1").Value = "Emails Sent:"
+    ws.Range("E1").Value = sentCount
+    ws.Range("D2").Value = "Emails Failed:"
+    ws.Range("E2").Value = failedCount
+    Application.StatusBar = False
+    MsgBox "Process completed!" & vbCrLf & "Sent: " & sentCount & vbCrLf & "Failed: " & failedCount, vbInformation
+End Sub
+
+' Validates email using RegEx
+Function IsValidEmail(email As String) As Boolean
+    Dim regex As Object
+    Set regex = CreateObject("VBScript.RegExp")
+    regex.Pattern = "^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$"
+    regex.IgnoreCase = True
+    IsValidEmail = regex.Test(email)
+End Function
+
+' Collect CC list (excluding current recipient)
+Function GetAllOtherEmails(ws As Worksheet, lastRow As Long, excludeEmail As String) As Collection
+    Dim col As New Collection
+    Dim i As Long, val As String
+    On Error Resume Next
+    For i = 1 To lastRow
+        val = Trim(ws.Cells(i, 1).Value)
+        If val <> "" And val <> excludeEmail Then
+            col.Add val, val
+        End If
+    Next i
+    Set GetAllOtherEmails = col
+End Function
