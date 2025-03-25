@@ -85,10 +85,12 @@ Sub SendEmailsWithSharePointSupport()
             fileCell.Interior.Color = vbRed
             fileCell.AddComment "File path is blank."
             isValid = False
-        ElseIf Not isSharePoint And Dir(fullPath) = "" Then
-            fileCell.Interior.Color = vbRed
-            fileCell.AddComment "Local file not found."
-            isValid = False
+        ElseIf Not isSharePoint Then
+            If Dir(fullPath) = "" Then
+                fileCell.Interior.Color = vbRed
+                fileCell.AddComment "Local file not found."
+                isValid = False
+            End If
         End If
 
         If emailDict.exists(recipients & "|" & fullPath) Then
@@ -104,7 +106,6 @@ Sub SendEmailsWithSharePointSupport()
                                 "File: " & fileNameOnly, vbYesNo + vbQuestion, "Confirm Email")
             If userChoice = vbNo Then GoTo LogEntry
 
-            ' Ask whether to attach (local only)
             If isSharePoint Then
                 includeAttachment = False
             Else
