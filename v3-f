@@ -1,0 +1,197 @@
+Option Explicit
+
+Sub SendEmailsWithDynamicSubjectAndOptionalAttachment()
+    Dim ws As Worksheet: Set ws = ThisWorkbook.Sheets(1)
+    Dim logSheet As Worksheet
+    Dim lastRow As Long: lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    Dim i As Long
+    Dim emailCell As Range, ccCell As Range, fileCell As Range
+    Dim recipients As String, ccList As String, fullPath As String, fileNameOnly As String
+    Dim mailApp As Object, mailItem As Object
+    Dim attachmentPath As String
+    Dim sentCount As Long, failedCount As Long
+    Dim emailDict As Object: Set emailDict = CreateObject("Scripting.Dictionary")
+    Dim statusMessage As String, errorMsg As String
+    Dim includeAttachment As Boolean
+
+    ' Setup EmailLog sheet
+    On Error Resume Next
+    Set logSheet = ThisWorkbook.Sheets("EmailLog")
+    If logSheet Is Nothing Then
+        Set logSheet = ThisWorkbook.Sheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+        logSheet.Name = "EmailLog"
+    Else
+        logSheet.Cells.Clear
+    End If
+    On Error GoTo 0
+
+    ' Format EmailLog header
+    With logSheet
+        .Range("A1:G1").Value = Array("DateTime", "Recipient(s)", "CC(s)", "File Path", "Status", "Error Message", "Attachment Path")
+        .Rows(1).Font.Bold = True
+    End With
+
+    ' Clear previous highlights
+    ws.Range("A2:D" & lastRow).Interior.ColorIndex = xlNone
+    ws.Range("A2:D" & lastRow).ClearComments
+
+    ' Setup Outlook
+    On Error Resume Next
+    Set mailApp = GetObject(, "Outlook.Application")
+    If mailApp Is Nothing Then Set mailApp = CreateObject("Outlook.Application")
+    On Error GoTo 0
+
+    If mailApp Is Nothing Then
+        MsgBox "Outlook is not available. Please open Outlook and try again.", vbCritical
+        Exit Sub
+    End If
+
+    For i = 2 To lastRow
+        ' Skip already sent rows
+        If LCase(Trim(ws.Cells(i, 4).Value)) = "sent successfully" Then GoTo NextRow
+
+        Set emailCell = ws.Cells(i, 1)
+        Set ccCell = ws.Cells(i, 2)
+        Set fileCell = ws.Cells(i, 3)
+
+        recipients = Trim(emailCell.Value)
+        ccList = Trim(ccCell.Value)
+        fullPath = Trim(fileCell.Value)
+        attachmentPath = fullPath
+        fileNameOnly = GetFileNameFromPath(fullPath)
+
+        Dim isValid As Boolean: isValid = True
+        errorMsg = ""
+
+        ' Validate inputs
+        If recipients = "" Then
+            emailCell.Interior.Color = vbRed
+            emailCell.AddComment "Recipient(s) missing."
+            isValid = False
+        ElseIf Not ContainsValidEmail(recipients) Then
+            emailCell.Interior.Color = vbRed
+            emailCell.AddComment "Invalid email(s)."
+            isValid = False
+        End If
+
+        If ccList <> "" And Not ContainsValidEmail(ccList) Then
+            ccCell.Interior.Color = vbRed
+            ccCell.AddComment "Invalid CC email(s)."
+            isValid = False
+        End If
+
+        If fullPath = "" Then
+            fileCell.Interior.Color = vbRed
+            fileCell.AddComment "File path is blank."
+            isValid = False
+        ElseIf Dir(fullPath) = "" Then
+            fileCell.Interior.Color = vbRed
+            fileCell.AddComment "File not found."
+            isValid = False
+        End If
+
+        If emailDict.exists(recipients & "|" & fullPath) Then
+            emailCell.Interior.Color = vbYellow
+            emailCell.AddComment "Duplicate entry skipped."
+            isValid = False
+        End If
+
+        ' Proceed if valid
+        If isValid Then
+            Dim userChoice As VbMsgBoxResult
+            userChoice = MsgBox("Send email to: " & recipients & vbCrLf & _
+                                "CC: " & ccList & vbCrLf & _
+                                "File: " & fullPath, vbYesNo + vbQuestion, "Confirm Email")
+            If userChoice = vbNo Then GoTo LogEntry
+
+            ' Ask whether to attach the file
+            includeAttachment = (MsgBox("Attach the file '" & fileNameOnly & "'?", vbYesNo + vbQuestion, "Include Attachment?") = vbYes)
+
+            On Error GoTo EmailError
+            Application.StatusBar = "Sending to: " & recipients
+
+            Set mailItem = mailApp.CreateItem(0)
+            With mailItem
+                .To = recipients
+                .CC = ccList
+                .Subject = fileNameOnly
+                .HTMLBody = "<div style='font-family:Segoe UI, sans-serif; font-size:11pt; color:#333;'>" & _
+                            "<p>Dear Recipient,</p>" & _
+                            "<p>Please review the document at your earliest convenience:</p>" & _
+                            "<p style='margin-top:10px;'><a href='file:///" & Replace(fullPath, "\", "/") & "' " & _
+                            "style='color:#0066CC; text-decoration:none; font-weight:bold;'>📄 View Document – " & fileNameOnly & "</a></p>" & _
+                            IIf(includeAttachment, "<p>The document is also attached for your reference.</p>", "") & _
+                            "<p style='margin-top:30px;'>Best regards,<br><strong>Your Team</strong><br>" & _
+                            "<span style='font-size:9pt; color:#999;'>This is an automated message. Please do not reply.</span></p></div>"
+                If includeAttachment Then .Attachments.Add attachmentPath
+                .Send
+            End With
+
+            MsgBox "✅ Email sent to: " & recipients, vbInformation
+            emailDict.Add recipients & "|" & fullPath, True
+            sentCount = sentCount + 1
+            statusMessage = "Sent Successfully"
+            errorMsg = ""
+
+            ' Mark row as sent
+            ws.Cells(i, 4).Value = "Sent Successfully"
+            ws.Rows(i).Interior.Color = RGB(220, 255, 220) ' Light green
+
+            GoTo LogEntry
+
+EmailError:
+            MsgBox "❌ Error sending to " & recipients & vbCrLf & Err.Description, vbExclamation
+            failedCount = failedCount + 1
+            statusMessage = "Failed to Send"
+            errorMsg = Err.Description
+            GoTo LogEntry
+        Else
+            failedCount = failedCount + 1
+            statusMessage = "Skipped"
+            errorMsg = "Validation failed or duplicate"
+        End If
+
+LogEntry:
+        Dim r As Long: r = logSheet.Cells(logSheet.Rows.Count, 1).End(xlUp).Row + 1
+        With logSheet
+            .Cells(r, 1).Value = Now
+            .Cells(r, 2).Value = recipients
+            .Cells(r, 3).Value = ccList
+            .Cells(r, 4).Value = fullPath
+            .Cells(r, 5).Value = statusMessage
+            .Cells(r, 6).Value = errorMsg
+            .Cells(r, 7).Value = IIf(includeAttachment, attachmentPath, "")
+        End With
+
+NextRow:
+    Next i
+
+    Application.StatusBar = False
+    ws.Range("F1").Value = "✅ Sent:"
+    ws.Range("G1").Value = sentCount
+    ws.Range("F2").Value = "❌ Failed:"
+    ws.Range("G2").Value = failedCount
+    MsgBox "📬 Done! Sent: " & sentCount & " | Failed: " & failedCount, vbInformation
+End Sub
+
+Function ContainsValidEmail(str As String) As Boolean
+    Dim emails() As String, i As Long
+    Dim regex As Object: Set regex = CreateObject("VBScript.RegExp")
+    regex.Pattern = "^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$"
+    regex.IgnoreCase = True
+    emails = Split(str, ";")
+    For i = LBound(emails) To UBound(emails)
+        If Trim(emails(i)) <> "" Then
+            If Not regex.Test(Trim(emails(i))) Then
+                ContainsValidEmail = False
+                Exit Function
+            End If
+        End If
+    Next i
+    ContainsValidEmail = True
+End Function
+
+Function GetFileNameFromPath(path As String) As String
+    Dim fso As Object: Set fso = CreateObject("Scripting.FileSystemObject")
+    GetFileNameFromPath = fso.GetFileName(path)
+End Function
