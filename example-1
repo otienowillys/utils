@@ -1,0 +1,76 @@
+example
+
+model Use {
+  id              Int          @id @default(autoincrement()) @map("number")
+  name            String       @db.NVarChar(255)
+  version         String       @db.VarChar(50)
+  useIdNumber     String       @unique @map("use_id_number") @db.VarChar(100)
+  useLevel1       String?      @map("use_level1") @db.NVarChar(100)
+  useLevel2       String?      @map("use_level2") @db.NVarChar(100)
+  useDescription  String       @map("use_description") @db.NVarChar(max)
+  users           Json         @db.NVarChar(max)
+  usage           String       @db.NVarChar(max)
+  businessUsage   String       @map("business_usage") @db.NVarChar(max)
+  useStatus       String       @map("use_status") @default("ACTIVE") @db.VarChar(50)
+  results         Json         @db.NVarChar(max)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  // Relationships
+  monitors        Monitor[]
+
+  @@index([useIdNumber])
+  @@index([useLevel1, useLevel2])
+}
+
+model Monitor {
+  id                  Int           @id @default(autoincrement()) @map("number")
+  name                String        @db.NVarChar(255)
+  version             String        @db.VarChar(50)
+  mmpVersion          String        @map("mmp_version") @db.VarChar(50)
+  asOfDate            DateTime      @map("as_of_date")
+  useIdNumber         String        @map("use_id_number") @db.VarChar(100)
+  useDescription      String        @map("use_description") @db.NVarChar(max)
+  kpiId               String        @map("kpi_id") @db.VarChar(100)
+  metricName          String        @map("metric_name") @db.NVarChar(255)
+  metricUnits         String        @map("metric_units") @db.VarChar(50)
+  metricJustification String        @map("metric_justification") @db.NVarChar(max)
+  inner               Decimal       @db.Decimal(18,4)
+  outer               Decimal       @db.Decimal(18,4)
+  justification       String        @db.NVarChar(max)
+  firstTimeDate       DateTime      @map("first_time_date")
+  limId               String        @map("lim_id") @db.VarChar(100)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  // Relationships
+  use                 Use           @relation(fields: [useIdNumber], references: [useIdNumber])
+
+  @@index([useIdNumber])
+  @@index([kpiId])
+  @@index([limId])
+}
+
+model Control {
+  id                  Int           @id @default(autoincrement()) @map("number")
+  name                String        @db.NVarChar(255)
+  version             String        @db.VarChar(50)
+  caVersion           String        @map("ca_version") @db.VarChar(50)
+  caAsOfDate          DateTime      @map("ca_as_of_date")
+  controlId           String        @unique @map("control_id") @db.VarChar(100)
+  altControlId        String?       @map("alt_control_id") @db.VarChar(100)
+  category            String        @db.VarChar(50)
+  controlName         String        @map("control_name") @db.NVarChar(255)
+  controlDistribution String        @map("control_distribution") @db.NVarChar(max)
+  metric              String        @db.NVarChar(max)
+  justification       String        @db.NVarChar(max)
+  inner               Decimal       @db.Decimal(18,4)
+  outer               Decimal       @db.Decimal(18,4)
+  prodMon             String        @map("prod_mon") @default("NO") @db.VarChar(50)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([controlId])
+  @@index([altControlId])
+  @@index([category])
+}
