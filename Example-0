@@ -1,0 +1,165 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log('Starting seeding...');
+  
+  // Clear existing data
+  await prisma.monitor.deleteMany({});
+  await prisma.use.deleteMany({});
+  await prisma.control.deleteMany({});
+  
+  console.log('Deleted existing data...');
+
+  // Create a sample Use record
+  const use1 = await prisma.use.create({
+    data: {
+      name: 'Customer Churn Prediction',
+      version: '1.0.0',
+      useIdNumber: 'USE-ABC12345',
+      useLevel1: 'OPERATIONAL',
+      useLevel2: 'PRIMARY',
+      useDescription: 'AI model to predict customer churn based on historical behavior and account data.',
+      users: '["data.scientist@company.com","analyst@company.com","manager@company.com"]',
+      usage: 'Used for proactive customer retention campaigns and identifying at-risk customers.',
+      businessUsage: 'Enables targeted interventions leading to 15% reduction in churn rate.',
+      useStatus: 'ACTIVE',
+      results: '{"accuracy":0.87,"precision":0.92,"recall":0.85,"f1Score":0.88}',
+      // Adding relationship for monitors directly in the create operation
+      monitors: {
+        create: [
+          {
+            name: 'Churn Accuracy Monitor',
+            version: '1.0.0',
+            mmpVersion: 'MMP-03.2',
+            asOfDate: new Date('2025-02-15'),
+            useDescription: 'Monitoring prediction accuracy of the churn model.',
+            kpiId: 'KPI-ACC123',
+            metricName: 'Accuracy',
+            metricUnits: 'percent',
+            metricJustification: 'Critical metric for overall model performance evaluation.',
+            inner: 0.85,
+            outer: 0.75,
+            justification: 'Thresholds determined based on historical model performance and business requirements.',
+            firstTimeDate: new Date('2024-10-10'),
+            limId: 'LIM-ACC456'
+          },
+          {
+            name: 'Churn Prediction Latency',
+            version: '1.0.0',
+            mmpVersion: 'MMP-02.1',
+            asOfDate: new Date('2025-03-01'),
+            useDescription: 'Monitoring response time for churn predictions.',
+            kpiId: 'KPI-LAT789',
+            metricName: 'Response Time',
+            metricUnits: 'milliseconds',
+            metricJustification: 'Ensures user experience is not impacted by slow predictions.',
+            inner: 250.0000,
+            outer: 500.0000,
+            justification: 'Based on UX requirements for interactive data analysis.',
+            firstTimeDate: new Date('2024-11-05'),
+            limId: 'LIM-LAT123'
+          }
+        ]
+      }
+    }
+  });
+  
+  console.log(`Created Use model with useIdNumber: ${use1.useIdNumber} and its related monitors`);
+  
+  // Create a second Use record with its monitor
+  const use2 = await prisma.use.create({
+    data: {
+      name: 'Fraud Detection System',
+      version: '2.1.0',
+      useIdNumber: 'USE-XYZ67890',
+      useLevel1: 'STRATEGIC',
+      useLevel2: 'PRIMARY',
+      useDescription: 'Real-time fraud detection system for banking transactions.',
+      users: '["risk.analyst@company.com","security@company.com","support@company.com"]',
+      usage: 'Deployed in production across all transaction processing systems.',
+      businessUsage: 'Reduces fraud losses by 23% while maintaining false positive rate below 0.5%.',
+      useStatus: 'ACTIVE',
+      results: '{"accuracy":0.94,"precision":0.92,"recall":0.89,"f1Score":0.91}',
+      // Adding relationship for monitor directly in the create operation
+      monitors: {
+        create: [
+          {
+            name: 'Fraud Detection Precision',
+            version: '2.1.0',
+            mmpVersion: 'MMP-01.5',
+            asOfDate: new Date('2025-02-20'),
+            useDescription: 'Monitoring precision of fraud detection model.',
+            kpiId: 'KPI-PRE456',
+            metricName: 'Precision',
+            metricUnits: 'percent',
+            metricJustification: 'Critical for minimizing false positives which create customer friction.',
+            inner: 0.90,
+            outer: 0.85,
+            justification: 'High precision is required to prevent legitimate transactions from being flagged.',
+            firstTimeDate: new Date('2024-09-15'),
+            limId: 'LIM-PRE789'
+          }
+        ]
+      }
+    }
+  });
+  
+  console.log(`Created Use model with useIdNumber: ${use2.useIdNumber} and its related monitor`);
+  
+  // Create Control records
+  const control1 = await prisma.control.create({
+    data: {
+      name: 'Bias Monitoring Control',
+      version: '1.0.0',
+      caVersion: 'CA-02.1',
+      caAsOfDate: new Date('2025-01-10'),
+      controlId: 'CTL-BIAS001',
+      altControlId: 'ALTCTL-B123',
+      category: 'GOVERNANCE',
+      controlName: 'Fairness Metric Monitor',
+      controlDistribution: 'Normal(0.95, 0.02)',
+      metric: 'Demographic parity difference across protected attributes.',
+      justification: 'Required for compliance with internal fairness standards.',
+      inner: 0.90,
+      outer: 0.85,
+      prodMon: 'YES'
+    }
+  });
+  
+  console.log(`Created Control with controlId: ${control1.controlId}`);
+  
+  const control2 = await prisma.control.create({
+    data: {
+      name: 'Data Drift Detection',
+      version: '1.2.0',
+      caVersion: 'CA-03.0',
+      caAsOfDate: new Date('2025-02-01'),
+      controlId: 'CTL-DRIFT001',
+      altControlId: null,
+      category: 'MONITORING',
+      controlName: 'Feature Distribution Monitor',
+      controlDistribution: 'Custom',
+      metric: 'Kullback-Leibler divergence between training and production feature distributions.',
+      justification: 'Essential for detecting when model retraining is needed due to data drift.',
+      inner: 0.75,
+      outer: 0.60,
+      prodMon: 'YES'
+    }
+  });
+  
+  console.log(`Created Control with controlId: ${control2.controlId}`);
+  
+  console.log('Seeding completed successfully!');
+}
+
+main()
+  .catch((e) => {
+    console.error('Error during seeding:');
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
