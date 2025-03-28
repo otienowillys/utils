@@ -1,0 +1,218 @@
+import * as XLSX from 'xlsx';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Define the paths to your Excel files
+const usesFilePath = path.resolve('./data/uses.xlsx');
+const monitorsFilePath = path.resolve('./data/monitors.xlsx');
+const controlsFilePath = path.resolve('./data/controls.xlsx');
+
+// Function to read Excel file and convert to JSON
+function readExcelFile(filePath) {
+  try {
+    // Read the Excel file
+    const workbook = XLSX.readFile(filePath, {
+      cellDates: true // Ensures dates are parsed correctly
+    });
+    
+    // Get the first worksheet
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    
+    // Convert the worksheet to JSON
+    const data = XLSX.utils.sheet_to_json(worksheet);
+    
+    return data;
+  } catch (error) {
+    console.error(`Error reading Excel file ${filePath}:`, error);
+    return [];
+  }
+}
+
+// Function to format date for JavaScript Date constructor
+function formatDate(date) {
+  if (!date) return null;
+  
+  if (typeof date === 'string') {
+    return `new Date('${date}')`;
+  }
+  
+  if (date instanceof Date) {
+    return `new Date('${date.toISOString()}')`;
+  }
+  
+  return null;
+}
+
+// Function to format JSON string fields
+function formatJsonString(value) {
+  if (!value) return '[]';
+  
+  try {
+    // If it's already a string, try to parse it to ensure it's valid JSON
+    if (typeof value === 'string') {
+      JSON.parse(value);
+      return `'${value.replace(/'/g, "\\'")}'`;
+    }
+    
+    // If it's an object, stringify it
+    return `'${JSON.stringify(value).replace(/'/g, "\\'")}'`;
+  } catch (error) {
+    // If parsing fails, return it as a basic array
+    return '[]';
+  }
+}
+
+// Generate the seed.ts file content
+async function generateSeedFile() {
+  // Read data from Excel files
+  const uses = readExcelFile(usesFilePath);
+  const monitors = readExcelFile(monitorsFilePath);
+  const controls = readExcelFile(controlsFilePath);
+  
+  // Create a map of useIdNumber to its related monitors
+  const useMonitorsMap = new Map();
+  
+  monitors.forEach(monitor => {
+    const useIdNumber = monitor.use_id_number || monitor.useIdNumber;
+    if (!useIdNumber) return;
+    
+    if (!useMonitorsMap.has(useIdNumber)) {
+      useMonitorsMap.set(useIdNumber, []);
+    }
+    
+    useMonitorsMap.get(useIdNumber).push(monitor);
+  });
+  
+  // Generate seed file content
+  let seedFileContent = `
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log('Starting seeding...');
+  
+  // Clear existing data
+  await prisma.monitor.deleteMany({});
+  await prisma.use.deleteMany({});
+  await prisma.control.deleteMany({});
+  
+  console.log('Deleted existing data...');
+
+`;
+
+  // Add Use records with their related monitors
+  uses.forEach(use => {
+    const useIdNumber = use.use_id_number || use.useIdNumber;
+    const relatedMonitors = useMonitorsMap.get(useIdNumber) || [];
+    
+    // Format the users field if it exists
+    const usersValue = use.users ? formatJsonString(use.users) : "[]";
+    
+    // Format the results field if it exists
+    const resultsValue = use.results ? formatJsonString(use.results) : "{}";
+    
+    seedFileContent += `
+  // Create Use record for ${use.name}
+  const use_${useIdNumber.replace(/[^a-zA-Z0-9]/g, '_')} = await prisma.use.create({
+    data: {
+      name: '${use.name || ''}',
+      version: '${use.version || '1.0.0'}',
+      useIdNumber: '${useIdNumber}',
+      useLevel1: ${use.useLevel1 || use.use_level1 ? `'${use.useLevel1 || use.use_level1}'` : 'null'},
+      useLevel2: ${use.useLevel2 || use.use_level2 ? `'${use.useLevel2 || use.use_level2}'` : 'null'},
+      useDescription: '${(use.useDescription || use.use_description || '').replace(/'/g, "\\'")}',
+      users: ${usersValue},
+      usage: '${(use.usage || '').replace(/'/g, "\\'")}',
+      businessUsage: '${(use.businessUsage || use.business_usage || '').replace(/'/g, "\\'")}',
+      useStatus: '${use.useStatus || use.use_status || 'ACTIVE'}',
+      results: ${resultsValue},
+      monitors: {
+        create: [`;
+    
+    // Add monitors for this use
+    relatedMonitors.forEach(monitor => {
+      seedFileContent += `
+          {
+            name: '${(monitor.name || '').replace(/'/g, "\\'")}',
+            version: '${monitor.version || use.version || '1.0.0'}',
+            mmpVersion: '${monitor.mmpVersion || monitor.mmp_version || ''}',
+            asOfDate: ${formatDate(monitor.asOfDate || monitor.as_of_date) || 'new Date()'},
+            useDescription: '${(monitor.useDescription || monitor.use_description || '').replace(/'/g, "\\'")}',
+            kpiId: '${monitor.kpiId || monitor.kpi_id || ''}',
+            metricName: '${(monitor.metricName || monitor.metric_name || '').replace(/'/g, "\\'")}',
+            metricUnits: '${monitor.metricUnits || monitor.metric_units || ''}',
+            metricJustification: '${(monitor.metricJustification || monitor.metric_justification || '').replace(/'/g, "\\'")}',
+            inner: ${monitor.inner || 0},
+            outer: ${monitor.outer || 0},
+            justification: '${(monitor.justification || '').replace(/'/g, "\\'")}',
+            firstTimeDate: ${formatDate(monitor.firstTimeDate || monitor.first_time_date) || 'new Date()'},
+            limId: '${monitor.limId || monitor.lim_id || ''}'
+          },`;
+    });
+    
+    // Close the monitors creation array
+    seedFileContent += `
+        ]
+      }
+    }
+  });
+  
+  console.log(\`Created Use record: ${use.name} with ID: ${useIdNumber}\`);
+`;
+  });
+  
+  // Add Control records
+  controls.forEach(control => {
+    seedFileContent += `
+  // Create Control record for ${control.name}
+  await prisma.control.create({
+    data: {
+      name: '${(control.name || '').replace(/'/g, "\\'")}',
+      version: '${control.version || '1.0.0'}',
+      caVersion: '${control.caVersion || control.ca_version || ''}',
+      caAsOfDate: ${formatDate(control.caAsOfDate || control.ca_as_of_date) || 'new Date()'},
+      controlId: '${control.controlId || control.control_id || ''}',
+      altControlId: ${control.altControlId || control.alt_control_id ? `'${control.altControlId || control.alt_control_id}'` : 'null'},
+      category: '${control.category || 'MONITORING'}',
+      controlName: '${(control.controlName || control.control_name || '').replace(/'/g, "\\'")}',
+      controlDistribution: '${(control.controlDistribution || control.control_distribution || '').replace(/'/g, "\\'")}',
+      metric: '${(control.metric || '').replace(/'/g, "\\'")}',
+      justification: '${(control.justification || '').replace(/'/g, "\\'")}',
+      inner: ${control.inner || 0},
+      outer: ${control.outer || 0},
+      prodMon: '${control.prodMon || control.prod_mon || 'NO'}'
+    }
+  });
+  
+  console.log(\`Created Control record: ${control.name} with ID: ${control.controlId || control.control_id}\`);
+`;
+  });
+  
+  // Add the closing part of the seed file
+  seedFileContent += `
+  console.log('Seeding completed successfully!');
+}
+
+main()
+  .catch((e) => {
+    console.error('Error during seeding:');
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
+`;
+
+  // Write the seed file
+  fs.writeFileSync('prisma/seed.ts', seedFileContent);
+  console.log('Generated seed.ts file at prisma/seed.ts');
+}
+
+// Run the generator
+generateSeedFile()
+  .catch(error => {
+    console.error('Error generating seed file:', error);
+  });
