@@ -1,0 +1,351 @@
+import * as XLSX from 'xlsx';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Define the paths to your Excel files and worksheet names
+const useConfig = {
+  filePath: path.resolve('./data/uses.xlsx'),
+  worksheetName: 'Uses' // Specify the worksheet name for uses
+};
+
+const monitorConfig = {
+  filePath: path.resolve('./data/monitors.xlsx'),
+  worksheetName: 'Monitors' // Specify the worksheet name for monitors
+};
+
+const controlConfig = {
+  filePath: path.resolve('./data/controls.xlsx'),
+  worksheetName: 'Controls' // Specify the worksheet name for controls
+};
+
+// Function to normalize field names from Excel to match schema properties
+function normalizeFieldName(fieldName) {
+  if (!fieldName) return null;
+  
+  // Convert the field name to a string if it's not already
+  const strFieldName = String(fieldName);
+  
+  // Create a mapping of common Excel field names to schema field names
+  const fieldMappings = {
+    // Use model mappings
+    'use id number': 'useIdNumber',
+    'use_id_number': 'useIdNumber',
+    'id #': 'useIdNumber',
+    'id#': 'useIdNumber',
+    'use id #': 'useIdNumber',
+    'use id#': 'useIdNumber',
+    'use level 1': 'useLevel1',
+    'use_level1': 'useLevel1',
+    'use level1': 'useLevel1',
+    'level 1': 'useLevel1',
+    'use level 2': 'useLevel2',
+    'use_level2': 'useLevel2',
+    'use level2': 'useLevel2',
+    'level 2': 'useLevel2',
+    'use description': 'useDescription',
+    'use_description': 'useDescription',
+    'business usage': 'businessUsage',
+    'business_usage': 'businessUsage',
+    'use status': 'useStatus',
+    'use_status': 'useStatus',
+    
+    // Monitor model mappings
+    'mmp version': 'mmpVersion',
+    'mmp_version': 'mmpVersion',
+    'as of date': 'asOfDate',
+    'as_of_date': 'asOfDate',
+    'kpi id': 'kpiId',
+    'kpi_id': 'kpiId',
+    'metric name': 'metricName',
+    'metric_name': 'metricName',
+    'metric units': 'metricUnits',
+    'metric_units': 'metricUnits',
+    'metric justification': 'metricJustification',
+    'metric_justification': 'metricJustification',
+    'first time date': 'firstTimeDate',
+    'first_time_date': 'firstTimeDate',
+    'lim id': 'limId',
+    'lim_id': 'limId',
+    
+    // Control model mappings
+    'ca version': 'caVersion',
+    'ca_version': 'caVersion',
+    'ca as of date': 'caAsOfDate',
+    'ca_as_of_date': 'caAsOfDate',
+    'control id': 'controlId',
+    'control_id': 'controlId',
+    'alt control id': 'altControlId',
+    'alt_control_id': 'altControlId',
+    'control name': 'controlName',
+    'control_name': 'controlName',
+    'control distribution': 'controlDistribution',
+    'control_distribution': 'controlDistribution',
+    'prod mon': 'prodMon',
+    'prod_mon': 'prodMon'
+  };
+  
+  // Normalize the field name by converting to lowercase and removing extra spaces
+  const normalizedField = strFieldName.toLowerCase().trim();
+  
+  // Check if we have a direct mapping
+  if (fieldMappings[normalizedField]) {
+    return fieldMappings[normalizedField];
+  }
+  
+  // If no direct mapping, remove spaces and special characters
+  // This converts "Use Id Number" to "useidnumber"
+  let cleanedField = normalizedField
+    .replace(/\s+/g, '') // Remove spaces
+    .replace(/[^a-z0-9]/g, ''); // Remove special characters
+  
+  // Try to match the cleaned field with known field names
+  for (const [key, value] of Object.entries(fieldMappings)) {
+    const cleanedKey = key.replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+    if (cleanedField === cleanedKey) {
+      return value;
+    }
+  }
+  
+  // If not found, just return the original field name
+  return strFieldName;
+}
+
+// Function to format date for JavaScript Date constructor
+function formatDate(date) {
+  if (!date) return null;
+  
+  if (typeof date === 'string') {
+    return `new Date('${date}')`;
+  }
+  
+  if (date instanceof Date) {
+    return `new Date('${date.toISOString()}')`;
+  }
+  
+  return null;
+}
+
+// Function to format JSON string fields
+function formatJsonString(value) {
+  if (!value) return '[]';
+  
+  try {
+    // If it's already a string, try to parse it to ensure it's valid JSON
+    if (typeof value === 'string') {
+      JSON.parse(value);
+      return `'${value.replace(/'/g, "\\'")}'`;
+    }
+    
+    // If it's an object, stringify it
+    return `'${JSON.stringify(value).replace(/'/g, "\\'")}'`;
+  } catch (error) {
+    // If parsing fails, return it as a basic array
+    return '[]';
+  }
+}
+
+// Function to read Excel file and convert to JSON with field normalization
+function readExcelFile(config) {
+  try {
+    // Read the Excel file
+    const workbook = XLSX.readFile(config.filePath, {
+      cellDates: true // Ensures dates are parsed correctly
+    });
+    
+    // Get the specified worksheet or default to the first one
+    let sheetName;
+    if (config.worksheetName && workbook.SheetNames.includes(config.worksheetName)) {
+      sheetName = config.worksheetName;
+      console.log(`Using specified worksheet: ${sheetName}`);
+    } else {
+      sheetName = workbook.SheetNames[0];
+      console.log(`Worksheet '${config.worksheetName}' not found. Using first worksheet: ${sheetName}`);
+    }
+    
+    const worksheet = workbook.Sheets[sheetName];
+    
+    // Convert the worksheet to JSON
+    const rawData = XLSX.utils.sheet_to_json(worksheet);
+    
+    // Normalize the field names
+    const normalizedData = rawData.map(row => {
+      const normalizedRow = {};
+      for (const [key, value] of Object.entries(row)) {
+        const normalizedKey = normalizeFieldName(key);
+        normalizedRow[normalizedKey] = value;
+      }
+      return normalizedRow;
+    });
+    
+    return normalizedData;
+  } catch (error) {
+    console.error(`Error reading Excel file ${config.filePath}:`, error);
+    return [];
+  }
+}
+
+// Generate the seed.ts file content
+async function generateSeedFile() {
+  // Read data from Excel files
+  const uses = readExcelFile(useConfig);
+  const monitors = readExcelFile(monitorConfig);
+  const controls = readExcelFile(controlConfig);
+  
+  // Create a map of useIdNumber to its related monitors
+  const useMonitorsMap = new Map();
+  
+  monitors.forEach(monitor => {
+    // Try different possible field names for useIdNumber
+    const useIdNumber = monitor.useIdNumber;
+    if (!useIdNumber) return;
+    
+    if (!useMonitorsMap.has(useIdNumber)) {
+      useMonitorsMap.set(useIdNumber, []);
+    }
+    
+    useMonitorsMap.get(useIdNumber).push(monitor);
+  });
+  
+  // Generate seed file content
+  let seedFileContent = `
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log('Starting seeding...');
+  
+  // Clear existing data
+  await prisma.monitor.deleteMany({});
+  await prisma.use.deleteMany({});
+  await prisma.control.deleteMany({});
+  
+  console.log('Deleted existing data...');
+
+`;
+
+  // Add Use records with their related monitors
+  uses.forEach(use => {
+    const useIdNumber = use.useIdNumber;
+    if (!useIdNumber) {
+      console.warn('Skipping use record with missing useIdNumber:', use.name);
+      return;
+    }
+    
+    const relatedMonitors = useMonitorsMap.get(useIdNumber) || [];
+    
+    // Format the users field if it exists
+    const usersValue = use.users ? formatJsonString(use.users) : "[]";
+    
+    // Format the results field if it exists
+    const resultsValue = use.results ? formatJsonString(use.results) : "{}";
+    
+    seedFileContent += `
+  // Create Use record for ${use.name}
+  const use_${useIdNumber.replace(/[^a-zA-Z0-9]/g, '_')} = await prisma.use.create({
+    data: {
+      name: '${(use.name || '').replace(/'/g, "\\'")}',
+      version: '${use.version || '1.0.0'}',
+      useIdNumber: '${useIdNumber}',
+      useLevel1: ${use.useLevel1 ? `'${use.useLevel1}'` : 'null'},
+      useLevel2: ${use.useLevel2 ? `'${use.useLevel2}'` : 'null'},
+      useDescription: '${(use.useDescription || '').replace(/'/g, "\\'")}',
+      users: ${usersValue},
+      usage: '${(use.usage || '').replace(/'/g, "\\'")}',
+      businessUsage: '${(use.businessUsage || '').replace(/'/g, "\\'")}',
+      useStatus: '${use.useStatus || 'ACTIVE'}',
+      results: ${resultsValue},
+      monitors: {
+        create: [`;
+    
+    // Add monitors for this use
+    relatedMonitors.forEach(monitor => {
+      seedFileContent += `
+          {
+            name: '${(monitor.name || '').replace(/'/g, "\\'")}',
+            version: '${monitor.version || use.version || '1.0.0'}',
+            mmpVersion: '${monitor.mmpVersion || ''}',
+            asOfDate: ${formatDate(monitor.asOfDate) || 'new Date()'},
+            useDescription: '${(monitor.useDescription || '').replace(/'/g, "\\'")}',
+            kpiId: '${monitor.kpiId || ''}',
+            metricName: '${(monitor.metricName || '').replace(/'/g, "\\'")}',
+            metricUnits: '${monitor.metricUnits || ''}',
+            metricJustification: '${(monitor.metricJustification || '').replace(/'/g, "\\'")}',
+            inner: ${monitor.inner || 0},
+            outer: ${monitor.outer || 0},
+            justification: '${(monitor.justification || '').replace(/'/g, "\\'")}',
+            firstTimeDate: ${formatDate(monitor.firstTimeDate) || 'new Date()'},
+            limId: '${monitor.limId || ''}'
+          },`;
+    });
+    
+    // Close the monitors creation array
+    seedFileContent += `
+        ]
+      }
+    }
+  });
+  
+  console.log(\`Created Use record: ${use.name} with ID: ${useIdNumber}\`);
+`;
+  });
+  
+  // Add Control records
+  controls.forEach(control => {
+    const controlId = control.controlId;
+    if (!controlId) {
+      console.warn('Skipping control record with missing controlId:', control.name);
+      return;
+    }
+    
+    seedFileContent += `
+  // Create Control record for ${control.name}
+  await prisma.control.create({
+    data: {
+      name: '${(control.name || '').replace(/'/g, "\\'")}',
+      version: '${control.version || '1.0.0'}',
+      caVersion: '${control.caVersion || ''}',
+      caAsOfDate: ${formatDate(control.caAsOfDate) || 'new Date()'},
+      controlId: '${controlId}',
+      altControlId: ${control.altControlId ? `'${control.altControlId}'` : 'null'},
+      category: '${control.category || 'MONITORING'}',
+      controlName: '${(control.controlName || '').replace(/'/g, "\\'")}',
+      controlDistribution: '${(control.controlDistribution || '').replace(/'/g, "\\'")}',
+      metric: '${(control.metric || '').replace(/'/g, "\\'")}',
+      justification: '${(control.justification || '').replace(/'/g, "\\'")}',
+      inner: ${control.inner || 0},
+      outer: ${control.outer || 0},
+      prodMon: '${control.prodMon || 'NO'}'
+    }
+  });
+  
+  console.log(\`Created Control record: ${control.name} with ID: ${controlId}\`);
+`;
+  });
+  
+  // Add the closing part of the seed file
+  seedFileContent += `
+  console.log('Seeding completed successfully!');
+}
+
+main()
+  .catch((e) => {
+    console.error('Error during seeding:');
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
+`;
+
+  // Write the seed file
+  fs.writeFileSync('prisma/seed.ts', seedFileContent);
+  console.log('Generated seed.ts file at prisma/seed.ts');
+}
+
+// Run the generator
+generateSeedFile()
+  .catch(error => {
+    console.error('Error generating seed file:', error);
+  });
