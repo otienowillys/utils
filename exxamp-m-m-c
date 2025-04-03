@@ -114,3 +114,103 @@ data _NULL_;
  put 'console.log(''Seeding completed successfully!'');';
  put '}';
 run;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Create a combined dataset with all relevant data using PROC SQL */
+proc sql;
+  /* Create a dataset of distinct uses */
+  create table DISTINCT_USES as
+  select *, monotonic() as use_number
+  from SORTED_USE_DATA
+  group by useIdNumber
+  having min(monotonic());
+  
+  /* Create a joined dataset with all monitors related to their uses */
+  create table COMBINED_DATA as
+  select a.*, b.*, a.useIdNumber as use_id, b.useIdNumber as monitor_id,
+         a.use_number, 
+         monotonic() as monitor_row_num
+  from DISTINCT_USES a
+  left join SORTED_MONITOR_DATA b
+  on a.useIdNumber = b.useIdNumber
+  order by a.useIdNumber, calculated monitor_row_num;
+quit;
+
+/* Generate the output code file */
+data _NULL_;
+  set COMBINED_DATA;
+  by use_id;
+  file 'output_code.txt' MOD;
+  
+  /* Handle start of each use group */
+  if first.use_id then do;
+    put 'const use' use_number ' = await prisma.use.create({';
+    put '  data: {';
+    put '    name: "' a.name '",';
+    put '    version: "' a.version '",';
+    put '    useIdNumber: "' a.useIdNumber '",';
+    if not missing(a.useLevel1) then put '    useLevel1: "' a.useLevel1 '",';
+    if not missing(a.useLevel2) then put '    useLevel2: "' a.useLevel2 '",';
+    put '    useDescription: "' a.useDescription '",';
+    put '    users: "' a.users '",';
+    put '    usage: "' a.usage '",';
+    put '    businessUsage: "' a.businessUsage '",';
+    put '    useStatus: "' a.useStatus '",';
+    put '    results: "' a.results '",';
+    put '    monitors: {';
+    put '      create: [';
+  end;
+  
+  /* Only output monitor data if it exists */
+  if not missing(monitor_id) then do;
+    /* Add comma between monitors but not before first one */
+    if monitor_row_num > 1 and first.monitor_row_num = 0 then put ',';
+    
+    put '        {';
+    put '          name: "' b.name '",';
+    put '          version: "' b.version '",';
+    put '          mmpVersion: "' b.mmpVersion '",';
+    put '          asOfDate: new Date("' put(b.asOfDate, yymmdd10.) '"),';
+    put '          useDescription: "' b.useDescription '",';
+    put '          kpiId: "' b.kpiId '",';
+    put '          metricName: "' b.metricName '",';
+    put '          metricUnits: "' b.metricUnits '",';
+    put '          metricJustification: "' b.metricJustification '",';
+    put '          inner: ' b.inner ',';
+    put '          outer: ' b.outer ',';
+    put '          justification: "' b.justification '",';
+    put '          firstTimeDate: new Date("' put(b.firstTimeDate, yymmdd10.) '"),';
+    put '          limId: "' b.limId '"';
+    put '        }';
+  end;
+  
+  /* Close each use group */
+  if last.use_id then do;
+    put '      ]';
+    put '    }';
+    put '  }';
+    put '});';
+    put '';
+    put 'console.log(`Created Use model with useIdNumber: ${use' use_number '.useIdNumber} and its related monitors`);';
+    put '';
+  end;
+run;
+
+/* Write final console log */
+data _NULL_;
+  file 'output_code.txt' MOD;
+  put 'console.log("Seeding completed successfully!");';
+  put '}';
+run;
