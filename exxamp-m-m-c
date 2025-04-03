@@ -1,0 +1,116 @@
+/* Assuming you have three datasets: USE_DATA, MONITOR_DATA, and CONTROL_DATA */
+
+/* Dataset: USE_DATA (Assuming it's already sorted by useIdNumber) */
+/* If not, sort it: */
+proc sort data=USE_DATA;
+  by useIdNumber;
+run;
+
+/* Dataset: MONITOR_DATA (Assuming it's already sorted by useIdNumber) */
+/* If not, sort it: */
+proc sort data=MONITOR_DATA;
+  by useIdNumber;
+run;
+
+/* Dataset: CONTROL_DATA (Assuming it's already sorted by useIdNumber) */
+/* If not, sort it: */
+proc sort data=CONTROL_DATA;
+  by useIdNumber;
+run;
+
+/* Generate the desired code using PUT statements */
+data _NULL_;
+  set USE_DATA;
+  by useIdNumber;
+  file 'output_code.txt' MOD; /* Create or append to output_code.txt */
+  call symputx('useIdNumber',useIdNumber); /* define useIdNumber macro variable*/
+
+  if first.useIdNumber then do;
+    put 'const use' _N_ ' = await prisma.use.create({';
+    put '  data: {';
+    put '    name: ''' name ''',';
+    put '    version: ''' version ''',';
+    put '    useIdNumber: ''' useIdNumber ''',';
+    if not missing(useLevel1) then put '    useLevel1: ''' useLevel1 ''',';
+    if not missing(useLevel2) then put '    useLevel2: ''' useLevel2 ''',';
+    put '    useDescription: ''' useDescription ''',';
+    put '    users: ''' users ''',';
+    put '    usage: ''' usage ''',';
+    put '    businessUsage: ''' businessUsage ''',';
+    put '    useStatus: ''' useStatus ''',';
+    put '    results: ''' results ''',';
+    put '    monitors: {';
+    put '      create: [';
+  end;
+
+  /* Generate monitors for each USE record */
+  data _NULL_;
+    set MONITOR_DATA;
+    by useIdNumber;
+    where useIdNumber = "&useIdNumber";
+    file 'output_code.txt' MOD;
+    if _N_ > 1 then put ',';/*add comma if not first monitor*/
+    put '        {';
+    put '          name: ''' name ''',';
+    put '          version: ''' version ''',';
+    put '          mmpVersion: ''' mmpVersion ''',';
+    put '          asOfDate: new Date(''' put(asOfDate, yymmdd10.) '''),';
+    put '          useDescription: ''' useDescription ''',';
+    put '          kpiId: ''' kpiId ''',';
+    put '          metricName: ''' metricName ''',';
+    put '          metricUnits: ''' metricUnits ''',';
+    put '          metricJustification: ''' metricJustification ''',';
+    put '          inner: ' inner ',',;
+    put '          outer: ' outer ',',;
+    put '          justification: ''' justification ''',';
+    put '          firstTimeDate: new Date(''' put(firstTimeDate, yymmdd10.) '''),';
+    put '          limId: ''' limId '''';
+    put '        }';
+  run;
+
+  if last.useIdNumber then do;
+    put '      ]';
+    put '    },';
+    put '    control: {';
+    put '      create: [';
+
+    /* Generate controls for each USE record */
+    data _NULL_;
+      set CONTROL_DATA;
+      by useIdNumber;
+      where useIdNumber = "&useIdNumber";
+      file 'output_code.txt' MOD;
+      if _N_ > 1 then put ',';/*add comma if not first control*/
+      put '        {';
+      put '          name: ''' name ''',';
+      put '          version: ''' version ''',';
+      put '          caVersion: ''' caVersion ''',';
+      put '          caAsOfDate: new Date(''' put(caAsOfDate, yymmdd10.) '''),';
+      put '          controlId: ''' controlId ''',';
+      if not missing(altControlId) then put '    altControlId: ''' altControlId ''',';
+      put '          category: ''' category ''',';
+      put '          controlName: ''' controlName ''',';
+      put '          controlDistribution: ''' controlDistribution ''',';
+      put '          metric: ''' metric ''',';
+      put '          justification: ''' justification ''',';
+      put '          inner: ' inner ',',;
+      put '          outer: ' outer ',',;
+      put '          prodMon: ''' prodMon '''';
+      put '        }';
+    run;
+    put '      ]';
+    put '    }';
+    put '  }';
+    put '});';
+    put '';
+    put 'console.log(`Created Use model with useIdNumber: ${use' _N_ '.useIdNumber} and its related monitors`);';
+    put '';
+  end;
+run;
+
+/*Final console log*/
+data _NULL_;
+ file 'output_code.txt' MOD;
+ put 'console.log(''Seeding completed successfully!'');';
+ put '}';
+run;
