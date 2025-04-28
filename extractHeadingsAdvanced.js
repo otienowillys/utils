@@ -107,3 +107,17 @@ function getContentBetweenHeadings(matches, currentIndex, htmlContent) {
   }
 }
 
+
+
+
+Assess this document content: [DocumentA_Text]
+Based on these requirements: [DocumentB_Text]
+
+For each requirement:
+- Confirm if it is met (Yes/No).
+- Provide supporting text.
+- Note any gaps.
+- Score 0 (missing) or 1 (satisfied).
+- Create a table with columns: Requirement | Found | Evidence | Gap/Issue | Score (0–1).
+Calculate the overall compliance percentage.
+
