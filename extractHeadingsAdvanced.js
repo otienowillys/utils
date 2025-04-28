@@ -64,3 +64,46 @@ function getContentBetweenHeadings(matches, currentIndex, htmlContent) {
   fs.writeFileSync('output.json', JSON.stringify(nestedJson, null, 2), 'utf-8');
   console.log('✅ JSON extracted successfully and saved to output.json');
 })();
+
+
+
+
+
+
+
+
+
+
+
+
+{
+  "Section 1": {
+    "content": "Content under Section 1",
+    "subsections": {
+      "Subsection 1.1": {
+        "content": "Content under Subsection 1.1",
+        "subsections": {
+          "Detail 1.1.1": {
+            "content": "Content under Detail 1.1.1",
+            "subsections": {
+              "Point 1.1.1.1": {
+                "content": "Content under Point 1.1.1.1",
+                "subsections": {
+                  "Subpoint 1.1.1.1.1": {
+                    "content": "Content under Subpoint 1.1.1.1.1",
+                    "subsections": {
+                      "Minor 1.1.1.1.1.1": {
+                        "content": "Content under Minor 1.1.1.1.1.1"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
