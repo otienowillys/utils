@@ -121,3 +121,9 @@ For each requirement:
 - Create a table with columns: Requirement | Found | Evidence | Gap/Issue | Score (0–1).
 Calculate the overall compliance percentage.
 
+
+
+  PromptText = 
+"Assess the content: """ & [DocumentA_Content] & """ against the requirement: """ & [DocumentB_Requirement] & """. Output a table: Requirement | Found (Yes/No) | Evidence | Gap/Issue | Score (0–1)."
+
+
